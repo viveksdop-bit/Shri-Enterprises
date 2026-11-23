@@ -47,7 +47,7 @@ const defProducts=()=>[{id:'P01',name:'Weekly - Flat 30.5%',rate:30.5,method:'Fl
 try{D=JSON.parse(localStorage.getItem(LS))}catch(e){}
 if(!D)D={products:defProducts(),clients:[],loans:[],collections:[]};
 function save(){try{localStorage.setItem(LS,JSON.stringify(D))}catch(e){}}
-D.products.forEach(p=>{if(p.fee===1&&p.ins===0.5){p.fee=4;p.ins=4}});D.entries=D.entries||[];save();
+D.products.forEach(p=>{if(p.fee===1&&p.ins===0.5){p.fee=4;p.ins=4}});D.entries=D.entries||[];D.closures=D.closures||[];save();
 // ---- calculation engine (same logic as the Excel tool)
 function calc(l){
  const p=D.products.find(x=>x.id==l.product),c=D.clients.find(x=>x.id==l.client),o={l,c,p,name:c?c.name:'?'};
@@ -63,7 +63,10 @@ function calc(l){
  o.pos=o.out==0?0:p.method=='Flat'?Math.round(a*(1-o.col/o.total)):Math.round(Math.max(0,i?a*g-o.emi*(g-1)/i:a-o.emi*k));
  o.dpd=o.over>0?Math.max(0,days(asOn,dueOn(l,Math.floor(k)+1,ppy))):0;
  o.bucket=o.out==0?'Closed':o.dpd==0?'Regular':o.dpd<=30?'01-30':o.dpd<=60?'31-60':o.dpd<=90?'61-90':'90+';
- o.status=o.out==0?'Closed':o.over>0?'Overdue':'Regular';return o}
+ o.status=o.out==0?'Closed':o.over>0?'Overdue':'Regular';o.colb=o.col;
+ const cz=(D.closures||[]).find(x=>x.loan==l.id&&x.date<=asOn);
+ if(cz){o.cl=cz;if(cz.type=='Foreclosure')o.col+=+cz.rcv;o.due=Math.min(o.due,o.col);o.over=0;o.out=0;o.pos=0;o.dpd=0;o.bucket='Closed';o.status=cz.type=='Death'?'Death':'Foreclosed'}
+ return o}
 const rows=()=>D.loans.map(calc).filter(r=>r.emi);
 // ---- generic entity screens
 const RH=['Opening Balance','Capital Introduced','Borrowing Received','Other Income','Other Receipt'],PH=['Salary','Rent','Office Expense','Travel','Interest on Borrowings','Bad Debt Written Off','Other Expense','Borrowing Repaid','Insurance Premium Paid','Owner Withdrawal'],EXP=PH.slice(0,7);
@@ -92,6 +95,7 @@ function add(k){
   if((t=='num'&&(isNaN(v)||+v<0))||(t=='pos'&&!(+v>0))){alert(l+' sahi number daalein');return}r[f]=v}
  if(k=='loans'&&(!Number.isInteger(+r.n)||r.n>120)){alert('Installments 1 se 120 ke beech (poora number) hone chahiye');return}
  if(k=='loans'&&r.first<r.date){alert('First EMI date disbursement date se pehle nahi ho sakti');return}
+ if(k=='collections'&&(D.closures||[]).some(c=>c.loan==r.loan)){alert('Is loan ka Foreclosure/Death closure ho chuka hai. Pehle Closure tab se Reopen karein.');return}
  if(k=='entries'&&!(r.type=='Receipt'?RH:PH).includes(r.head)){alert('Head is Type se match nahi karta.\nReceipt heads: '+RH.join(', ')+'\nPayment heads: '+PH.join(', '));return}
  if(k=='products'&&!/^\d+(\s*,\s*\d+)*$/.test(r.terms)){alert('Installments comma se likhein, jaise 12,18,24');return}
  if(k=='collections'){const l=D.loans.find(x=>x.id==r.loan);if(l&&r.date<l.date){alert('Collection date disbursement se pehle nahi ho sakti');return}}
@@ -121,13 +125,13 @@ function del(k,id){
  ask(m,()=>{
  if(k=='clients')SL.forEach(s=>fdel(id+':'+s[0]));
  if(k=='clients')D.loans=D.loans.filter(l=>!ls.includes(l.id));
- if(k=='clients'||k=='loans')D.collections=D.collections.filter(c=>!ls.includes(c.loan));
+ if(k=='clients'||k=='loans'){D.collections=D.collections.filter(c=>!ls.includes(c.loan));D.closures=(D.closures||[]).filter(c=>!ls.includes(c.loan))}
  D[k]=D[k].filter(x=>x.id!=id);save();render()})}
 // ---- dashboard / portfolio / backup
 function dash(){
  const R=rows(),sm=f=>R.reduce((s,r)=>s+f(r),0),pos=sm(r=>r.pos),due=sm(r=>r.due),over=sm(r=>r.over);
  const par=t=>pos?R.filter(r=>r.dpd>t).reduce((s,r)=>s+r.pos,0)/pos:0;
- const K=[['Clients',D.clients.length],['Loans',D.loans.length],['Active Loans',R.filter(r=>r.status!='Closed').length],['Disbursed ₹',num(sm(r=>+r.l.amount))],['Total Repayable ₹',num(sm(r=>r.total))],['Collected ₹',num(sm(r=>r.col))],['Outstanding ₹',num(sm(r=>r.out))],['POS ₹',num(pos)],['Overdue ₹',num(over)],['Overdue Loans',R.filter(r=>r.status=='Overdue').length],['PAR > 30',pct(par(30))],['PAR > 90',pct(par(90))],['Collection Efficiency',due?pct((due-over)/due):'0.0%']];
+ const K=[['Clients',D.clients.length],['Loans',D.loans.length],['Active Loans',R.filter(r=>!['Closed','Foreclosed','Death'].includes(r.status)).length],['Disbursed ₹',num(sm(r=>+r.l.amount))],['Total Repayable ₹',num(sm(r=>r.total))],['Collected ₹',num(sm(r=>r.col))],['Outstanding ₹',num(sm(r=>r.out))],['POS ₹',num(pos)],['Overdue ₹',num(over)],['Overdue Loans',R.filter(r=>r.status=='Overdue').length],['Foreclosed / Death',R.filter(r=>r.cl).length],['PAR > 30',pct(par(30))],['PAR > 90',pct(par(90))],['Collection Efficiency',due?pct((due-over)/due):'0.0%']];
  let h=D.clients.length?'':`<div class="card">Abhi koi data nahi hai. Products tab check karein, phir Clients se shuru karein.</div>`;
  h+=`<div class="kp">${K.map(([a,b])=>`<div><span>${a}</span><b>${b}</b></div>`).join('')}</div><h2>Branch-wise Summary</h2>`;
  const br=[...new Set(D.clients.map(c=>c.branch))];
@@ -144,8 +148,8 @@ function pcsv(){const{hd,T}=pdata();saveFile('Portfolio_'+asOn+'.csv','\ufeff'+[
 function pxls(){const{hd,T}=pdata();saveFile('Portfolio_'+asOn+'.xlsx',xlsx('Portfolio',[hd,...T]))}
 function bak(){return`<h2>Backup &amp; Data</h2><div class="card"><p>Data sirf is browser me save hota hai. Backup ke liye JSON copy karke kahin save karein; wapas laane ke liye paste karke Import dabayein.</p>
 <button onclick="$('#bk').value=JSON.stringify(D)">Export JSON</button> <button class="p" onclick="imp()">Import JSON</button> <button onclick="reset()">Sab data hatayein</button><textarea id="bk"></textarea></div>`}
-function imp(){try{const x=JSON.parse($('#bk').value);if(!x.clients||!x.loans||!x.collections||!x.products)throw 0;D=x;D.entries=D.entries||[];save();render()}catch(e){alert('Sahi JSON backup paste karein')}}
-function reset(){ask('Saara data hata dein?',()=>{D={products:defProducts(),clients:[],loans:[],collections:[],entries:[]};save();render()})}
+function imp(){try{const x=JSON.parse($('#bk').value);if(!x.clients||!x.loans||!x.collections||!x.products)throw 0;D=x;D.entries=D.entries||[];D.closures=D.closures||[];save();render()}catch(e){alert('Sahi JSON backup paste karein')}}
+function reset(){ask('Saara data hata dein?',()=>{D={products:defProducts(),clients:[],loans:[],collections:[],entries:[],closures:[]};save();render()})}
 let dc=null,fl='';
 const SL=[['cphoto','Client Photo'],['hphoto','Husband Photo'],['cid','Client ID Proof'],['hid','Husband ID Proof'],['addr','Address Proof']];
 let _db;function idb(){return _db||(_db=new Promise((ok,no)=>{try{const q=indexedDB.open('mfi_files',1);q.onupgradeneeded=()=>q.result.createObjectStore('f');q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)}catch(e){no(e)}}))}
@@ -242,12 +246,12 @@ function sched(){
  for(const l of L){const o=calc(l);if(!o.emi)continue;
   const n=+l.n,i=o.p.rate/100/o.ppy,flat=o.p.method=='Flat';let bal=+l.amount;const R=[],T=[0,0,0,0,0];
   for(let k=1;k<=n;k++){
-   const it=flat?(o.total-l.amount)/n:bal*i,pr=flat?l.amount/n:Math.min(bal,o.emi-it),paid=Math.min(o.emi,Math.max(0,o.col-o.emi*(k-1))),d=dueOn(l,k,o.ppy);
-   const st=paid>=o.emi?'Paid':d<=asOn?(paid>0?'Partly Paid - Overdue':'Overdue'):paid>0?'Partly Paid':'Upcoming';
+   const it=flat?(o.total-l.amount)/n:bal*i,pr=flat?l.amount/n:Math.min(bal,o.emi-it),paid=Math.min(o.emi,Math.max(0,o.colb-o.emi*(k-1))),d=dueOn(l,k,o.ppy);
+   const st0=paid>=o.emi?'Paid':d<=asOn?(paid>0?'Partly Paid - Overdue':'Overdue'):paid>0?'Partly Paid':'Upcoming',st=(o.cl&&d>o.cl.date&&paid<o.emi)?'Cancelled ('+o.cl.type+')':st0;
    R.push([k,dm(d),num(o.emi),num(it),num(pr),num(paid),num(o.emi-paid),st]);bal-=pr;
    [o.emi,it,pr,paid,o.emi-paid].forEach((v,j)=>T[j]+=v)}
   R.push(['Total','',num(T[0]),num(T[1]),num(T[2]),num(T[3]),num(T[4]),'']);
-  const K=[['Loan Amount ₹',num(l.amount)],['Interest',o.p.rate+'% '+o.p.method],['EMI ₹',num(o.emi)+' × '+n+' ('+o.p.freq+')'],['First EMI',dm(l.first||dueOn(l,1,o.ppy))],['Total Repayable ₹',num(o.total)],['Collected ₹',num(o.col)],['Outstanding ₹',num(o.out)],['Overdue ₹',num(o.over)]];
+  const K=[['Loan Amount ₹',num(l.amount)],['Interest',o.p.rate+'% '+o.p.method],['EMI ₹',num(o.emi)+' × '+n+' ('+o.p.freq+')'],['First EMI',dm(l.first||dueOn(l,1,o.ppy))],['Total Repayable ₹',num(o.total)],['Collected ₹',num(o.col)],['Outstanding ₹',num(o.out)],['Overdue ₹',num(o.over)],...(o.cl?[['Closure',o.cl.type+' - '+dm(o.cl.date)]]:[])];
   const sec=`<h2>${esc(l.id)} · ${esc(o.p.name)}</h2><div class="kp" style="margin-bottom:8px">${K.map(([a,b])=>`<div><span>${a}</span><b style="font-size:15px">${b}</b></div>`).join('')}</div><div class="w">${tbl(['Inst. No','Due Date','Installment','Interest','Principal','Paid','Pending','Status'],R)}</div>`;h+=sec;b+=sec}
  window._sd=b?docWrap('Repayment Schedule - '+c.id,'<h1>Repayment Schedule (as on '+dm(asOn)+')</h1><p>'+info+'</p>'+b):null;
  return h}
@@ -313,6 +317,7 @@ function elAt(l,o,d){const F=dueOn(l,1,o.ppy),n=+l.n;if(d<F)return 0;let e;if(o.
 function cbRows(){const r=[];
  D.collections.forEach(c=>{const l=D.loans.find(x=>x.id==c.loan),cl=l&&D.clients.find(x=>x.id==l.client);r.push({d:c.date,p:'Loan repayment - '+(cl?cl.name:'?'),ref:c.loan+' / '+c.id,m:c.mode=='Cash'?'Cash':'Bank',rc:+c.amount,py:0})});
  D.loans.forEach(l=>{const o=calc(l);if(!o.emi)return;r.push({d:l.date,p:'Loan disbursed - '+o.name+' (net of fee & insurance)',ref:l.id,m:(l.dmode||'Cash')=='Cash'?'Cash':'Bank',rc:0,py:+l.amount-o.fee-o.ins})});
+ (D.closures||[]).forEach(c=>{const l=D.loans.find(x=>x.id==c.loan),cl=l&&D.clients.find(x=>x.id==l.client);if(+c.rcv>0)r.push({d:c.date,p:(c.type=='Death'?'Insurance claim received (Death) - ':'Foreclosure settlement - ')+(cl?cl.name:'?'),ref:c.loan+' / '+c.id,m:c.mode=='Cash'?'Cash':'Bank',rc:+c.rcv,py:0})});
  (D.entries||[]).forEach(e=>r.push({d:e.date,p:e.head+(e.desc?' - '+e.desc:''),ref:e.id,m:e.mode=='Cash'?'Cash':'Bank',rc:e.type=='Receipt'?+e.amount:0,py:e.type=='Payment'?+e.amount:0}));
  return r.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0)}
 function rng(extra){if(!cf)cf=asOn.slice(0,8)+'01';if(!ct)ct=asOn;
@@ -334,22 +339,47 @@ function pnl(){
  D.loans.map(calc).filter(o=>o.emi).forEach(o=>{const l=o.l,n=+l.n,tot=o.total-l.amount;
   if(l.date>=cf&&l.date<=ct){fee+=o.fee;ins+=o.ins}
   if(pb=='cash')D.collections.forEach(c=>{if(c.loan==l.id&&c.date>=cf&&c.date<=ct)ii+=c.amount*tot/o.total});
-  else ii+=(elAt(l,o,ct)-elAt(l,o,addD(cf,-1)))*tot/n});
+  else{const cz=(D.closures||[]).find(x=>x.loan==l.id),e2=cz&&cz.date<ct?cz.date:ct,pd=addD(cf,-1),e1=cz&&cz.date<pd?cz.date:pd;ii+=(elAt(l,o,e2)-elAt(l,o,e1))*tot/n}});
+ let ci=0,cc=0,loss=0;(D.closures||[]).filter(c=>c.date>=cf&&c.date<=ct).forEach(c=>{ci+=+c.intInc;cc+=+c.chgInc;loss+=+c.loss});if(pb=='cash')ii+=ci;
  const inr=(D.entries||[]).filter(e=>e.date>=cf&&e.date<=ct),sm=(t,hd)=>inr.filter(e=>e.type==t&&e.head==hd).reduce((s,e)=>s+ +e.amount,0);
- const oth=sm('Receipt','Other Income'),ex=EXP.map(hd=>[hd,sm('Payment',hd)]).filter(x=>x[1]>0),te=ex.reduce((s,x)=>s+x[1],0),ti=ii+fee+oth,np=ti-te,rem=sm('Payment','Insurance Premium Paid');
- const rw=[['h','INCOME'],['r','Interest income ('+(pb=='cash'?'collected':'earned')+')',ii],['r','Processing fee income',fee],['r','Other income',oth],['t','Total Income',ti],['h','EXPENSES'],...ex.map(x=>['r',x[0],x[1]]),['t','Total Expenses',te],['t',np>=0?'NET PROFIT':'NET LOSS',Math.abs(np),np<0?'color:#c0392b':'color:#1e8449'],['h','MEMO (profit me shamil nahi)'],['r','Insurance collected from borrowers',ins],['r','Insurance premium paid to insurer',rem],['r','Insurance payable to insurer (balance)',ins-rem]];
+ const oth=sm('Receipt','Other Income'),ex=[...EXP.map(hd=>[hd,sm('Payment',hd)]),['Loan loss on closure (written off)',loss]].filter(x=>x[1]>0),te=ex.reduce((s,x)=>s+x[1],0),ti=ii+fee+oth+cc,np=ti-te,rem=sm('Payment','Insurance Premium Paid');
+ const rw=[['h','INCOME'],['r','Interest income ('+(pb=='cash'?'collected':'earned')+')',ii],['r','Processing fee income',fee],['r','Closure charges & other income',cc],['r','Other income',oth],['t','Total Income',ti],['h','EXPENSES'],...ex.map(x=>['r',x[0],x[1]]),['t','Total Expenses',te],['t',np>=0?'NET PROFIT':'NET LOSS',Math.abs(np),np<0?'color:#c0392b':'color:#1e8449'],['h','MEMO (profit me shamil nahi)'],['r','Insurance collected from borrowers',ins],['r','Insurance premium paid to insurer',rem],['r','Insurance payable to insurer (balance)',ins-rem]];
  const tb=`<table>${rw.map(x=>x[0]=='h'?`<tr><th colspan="2">${x[1]}</th></tr>`:`<tr${x[0]=='t'?` style="font-weight:bold;background:rgba(31,79,163,.12);${x[3]||''}"`:''}><td>${esc(x[1])}</td><td style="text-align:right;width:180px">${num(x[2])}</td></tr>`).join('')}</table>`;
  window._pl=docWrap('Profit and Loss','<h1>Profit &amp; Loss ('+dm2(cf)+' to '+dm2(ct)+')</h1>'+tb);
  window._plx=[['Particulars','Amount'],...rw.map(x=>x[0]=='h'?[x[1],'']:[x[1],Math.round(x[2])])];
  const mg=ti?pct(np/ti):'0.0%';
  return`<h2>Profit &amp; Loss</h2>${R}<div class="card"><button class="p" onclick="printDoc(window._pl,'Profit_Loss.html')">\u{1F5A8} Print</button> <button class="p" onclick="saveFile('Profit_Loss_'+cf+'_'+ct+'.xlsx',xlsx('Profit and Loss',window._plx))">Download Excel (.xlsx)</button> <small>Net ${np>=0?'profit':'loss'} margin: ${mg}</small></div><div class="w">${tb}</div>
  <div class="card" style="margin-top:12px"><small>Cash basis: har collection me se loan ke total interest ka hissa (interest &divide; total repayable) interest income maana jata hai. Accrual basis: chune hue period me jitni installments due huin, unka interest. Processing fee disbursement ki date par income maani gayi hai. Insurance income nahi hai (insurer ko dena hota hai). Kharche Cashbook ke Manual Entries se aate hain.</small></div>`}
-const V={Dashboard:dash,Clients:()=>ent('clients'),Loans:()=>ent('loans'),Collections:()=>ent('collections'),Products:()=>ent('products'),Portfolio:port,Cashbook:cashbook,'Profit & Loss':pnl,Schedule:sched,Application:appv,Backup:bak,Users:usersv};
+function clCalc(l,d,chg){const sv=asOn;asOn=d;const o=calc(l);asOn=sv;
+ const ipi=(o.total-l.amount)/l.n,earned=elAt(l,o,d)*ipi,paidInt=o.col*(o.total-l.amount)/o.total,due=Math.max(0,Math.round(earned-paidInt)),pos=o.pos,charge=Math.round(pos*chg/100);
+ return{o,pos,due,charge,settle:pos+due+charge}}
+function clPrev(){const le=$('#c_loan');if(!le)return;const l=D.loans.find(x=>x.id==le.value);if(!l)return;
+ const dth=$('#c_type').value=='Death',d=$('#c_date').value||asOn;
+ $('#c_whol').style.display=dth?'':'none';$('#c_chgl').style.display=dth?'none':'';
+ const r=clCalc(l,d,dth?0:(+$('#c_chg').value||0));
+ $('#c_pv').innerHTML=[['Outstanding Principal',num(r.pos)],['Unpaid Interest (accrued)',num(r.due)],...(dth?[]:[['Foreclosure Charge',num(r.charge)]]),[dth?'Expected Insurance Claim':'Settlement Amount',num(r.settle)]].map(([a,b])=>`<div><span>${a}</span><b style="font-size:15px">${b}</b></div>`).join('');
+ $('#c_rcv').value=r.settle}
+function addCl(){const l=D.loans.find(x=>x.id==$('#c_loan').value);if(!l)return;
+ const ty=$('#c_type').value,d=$('#c_date').value,dth=ty=='Death',rv=$('#c_rcv').value,rcv=+rv;
+ if(!d||d<l.date){toast('Closure date sahi daalein (loan ki date ke baad ki)');return}
+ if(rv===''||!(rcv>=0)){toast('Amount Received daalein (0 bhi chalega)');return}
+ const r=clCalc(l,d,dth?0:(+$('#c_chg').value||0)),pr=Math.min(rcv,r.pos),rem=rcv-pr,ii=Math.min(r.due,rem),mode=$('#c_mode').value,note=$('#c_note').value.trim(),who=dth?$('#c_who').value:'';
+ ask(l.id+' ko '+ty+' se close karein? Baad mein "Reopen" se wapas khol sakte hain.',()=>{
+  const id='X'+String(Math.max(0,...(D.closures||[]).map(x=>+x.id.slice(1)||0))+1).padStart(4,'0');
+  D.closures.push({id,loan:l.id,type:ty,date:d,who,pos:r.pos,due:r.due,charge:r.charge,settle:r.settle,rcv,mode,note,loss:r.pos-pr,intInc:ii,chgInc:rem-ii});save();render()})}
+function reopen(id){ask(id+' ko Reopen karein? Loan phir se active ho jayega.',()=>{D.closures=D.closures.filter(c=>c.id!=id);save();render()})}
+function closure(){
+ const act=D.loans.filter(l=>!(D.closures||[]).some(c=>c.loan==l.id)&&calc(l).emi);
+ const opt=act.map(l=>`<option value="${esc(l.id)}">${esc(l.id+' - '+((D.clients.find(c=>c.id==l.client)||{}).name||'?'))}</option>`).join('');
+ const form=act.length?`<div class="form"><label>Loan<select id="c_loan" onchange="clPrev()">${opt}</select></label><label>Closure Type<select id="c_type" onchange="clPrev()"><option>Foreclosure</option><option>Death</option></select></label><label>Closure Date<input type="date" id="c_date" value="${asOn}" onchange="clPrev()"></label><label id="c_whol">Death of<select id="c_who"><option>Client</option><option>Husband</option></select></label><label id="c_chgl">Foreclosure Charge %<input type="number" step="any" id="c_chg" value="0" oninput="clPrev()"></label></div><div id="c_pv" class="kp" style="margin-bottom:10px"></div><div class="form"><label>Amount Received (Rs)<input type="number" step="any" id="c_rcv"></label><label>Mode<select id="c_mode"><option>Cash</option><option>Bank Transfer</option><option>UPI</option></select></label><label>Note<input id="c_note"></label></div><button class="p" onclick="addCl()">Close Loan</button> <small>Foreclosure: customer se settlement. Death: insurance claim ka amount. Jo principal recover nahi hua wo Profit &amp; Loss mein loss likha jata hai. Amount Received badal sakte hain.</small>`:'Koi active loan nahi hai.';
+ const T=(D.closures||[]).map(c=>{const l=D.loans.find(x=>x.id==c.loan),cl=l&&D.clients.find(x=>x.id==l.client);return[c.id,c.loan,cl?cl.name:'?',c.type+(c.who?' ('+c.who+')':''),dm2(c.date),num(c.pos),num(c.due),num(c.charge),num(c.settle),num(c.rcv),num(c.loss),c.mode,c.note||'',`<button onclick="reopen('${c.id}')">Reopen</button>`]});
+ return`<h2>Loan Closure (Foreclosure / Death)</h2><div class="card">${form}</div><h2>Closed Loans</h2><div class="w">${tbl(['ID','Loan','Client','Type','Date','Outstanding Principal','Unpaid Interest','Charge','Settlement Due','Received','Loss Written Off','Mode','Note',''],T,[13])}</div>`}
+const V={Dashboard:dash,Clients:()=>ent('clients'),Loans:()=>ent('loans'),Collections:()=>ent('collections'),Closure:closure,Products:()=>ent('products'),Portfolio:port,Cashbook:cashbook,'Profit & Loss':pnl,Schedule:sched,Application:appv,Backup:bak,Users:usersv};
 function render(){if(!U)return authScreen();$('#ason').parentNode.style.display='';$('#ason').value=asOn;
  $('#usr').innerHTML=`<span>\u{1F464} ${esc(U.id)} (${U.role}) <button onclick="pwDlg('${U.id}')">Password</button> <button onclick="logout()">Logout</button></span>`;
  if(!tabOk(tab))tab='Dashboard';
  $('#nav').innerHTML=Object.keys(V).filter(tabOk).map(t=>`<button class="${t==tab?'on':''}" onclick="tab='${t}';ed=null;render()">${t}</button>`).join('');
- $('#v').innerHTML=V[tab]();if(tab=='Loans')sync();if(tab=='Clients'&&dc)docs()}
+ $('#v').innerHTML=V[tab]();if(tab=='Loans')sync();if(tab=='Clients'&&dc)docs();if(tab=='Closure')clPrev()}
 $('#hl').innerHTML=logo('var(--ac)','var(--bg)',40);
 render();
 </script></body></html>
