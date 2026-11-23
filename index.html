@@ -47,7 +47,7 @@ const defProducts=()=>[{id:'P01',name:'Weekly - Flat 30.5%',rate:30.5,method:'Fl
 try{D=JSON.parse(localStorage.getItem(LS))}catch(e){}
 if(!D)D={products:defProducts(),clients:[],loans:[],collections:[]};
 function save(){try{localStorage.setItem(LS,JSON.stringify(D))}catch(e){}}
-D.products.forEach(p=>{if(p.fee===1&&p.ins===0.5){p.fee=4;p.ins=4}});D.entries=D.entries||[];D.closures=D.closures||[];save();
+D.products.forEach(p=>{if(p.fee===1&&p.ins===0.5){p.fee=4;p.ins=4}});D.entries=D.entries||[];D.closures=D.closures||[];migStaff();save();
 // ---- calculation engine (same logic as the Excel tool)
 function calc(l){
  const p=D.products.find(x=>x.id==l.product),c=D.clients.find(x=>x.id==l.client),o={l,c,p,name:c?c.name:'?'};
@@ -69,17 +69,24 @@ function calc(l){
  return o}
 const rows=()=>D.loans.map(calc).filter(r=>r.emi);
 // ---- generic entity screens
+function migStaff(){const cs=id=>D.clients.find(x=>x.id==id)||{};
+ D.loans.forEach(l=>{if(l.staff==null)l.staff=cs(l.client).staff||''});
+ D.collections.forEach(c=>{if(c.staff==null){const l=D.loans.find(x=>x.id==c.loan)||{};c.staff=l.staff||cs(l.client).staff||''}});
+ (D.closures||[]).forEach(c=>{if(c.staff==null){const l=D.loans.find(x=>x.id==c.loan)||{};c.staff=l.staff||cs(l.client).staff||''}})}
+function stfL(){const c=D.clients.find(x=>x.id==($('#f_client')||{}).value),e=$('#f_staff');if(c&&e)e.value=c.staff||''}
+function stfC(){const l=D.loans.find(x=>x.id==($('#f_loan')||{}).value),e=$('#f_staff');if(l&&e)e.value=l.staff||(D.clients.find(x=>x.id==l.client)||{}).staff||''}
+function stfX(){const l=D.loans.find(x=>x.id==($('#c_loan')||{}).value),e=$('#c_staff');if(l&&e)e.value=l.staff||(D.clients.find(x=>x.id==l.client)||{}).staff||''}
 const RH=['Opening Balance','Capital Introduced','Borrowing Received','Other Income','Other Receipt'],PH=['Salary','Rent','Office Expense','Travel','Interest on Borrowings','Bad Debt Written Off','Other Expense','Borrowing Repaid','Insurance Premium Paid','Owner Withdrawal'],EXP=PH.slice(0,7);
 const S={
- clients:{t:'Clients',p:'C',w:4,f:[['name','Client Name'],['husband','Husband Name'],['group','Group'],['branch','Branch'],['village','Village'],['address','Address'],['mobile','Mobile'],['alt','Alternate Mobile (optional)']]},
+ clients:{t:'Clients',p:'C',w:4,f:[['name','Client Name'],['husband','Husband Name'],['group','Group'],['branch','Branch'],['staff','Staff / Loan Officer Name'],['village','Village'],['address','Address'],['mobile','Mobile'],['alt','Alternate Mobile (optional)']]},
  products:{t:'Loan Products',p:'P',w:2,f:[['name','Product Name'],['rate','Interest % p.a.','num'],['method','Method',['Flat','Reducing']],['freq','Frequency',['Weekly','Fortnightly','Monthly']],['terms','Allowed Installments (comma se, e.g. 12,18,24)'],['fee','Processing Fee %','num'],['ins','Insurance %','num']]},
- loans:{t:'Loan Disbursement',p:'L',w:4,f:[['client','Client','sel',()=>D.clients.map(c=>[c.id,c.id+' - '+c.name])],['product','Product','sel',()=>D.products.map(p=>[p.id,p.name])],['date','Disbursement Date','date'],['first','First EMI Date','date'],['amount','Loan Amount','pos'],['n','No. of Installments','sel',()=>D.products.length?terms(D.products[0]):['1']],['dmode','Disbursement Mode',['Cash','Bank Transfer']]],
+ loans:{t:'Loan Disbursement',p:'L',w:4,f:[['client','Client','sel',()=>D.clients.map(c=>[c.id,c.id+' - '+c.name])],['product','Product','sel',()=>D.products.map(p=>[p.id,p.name])],['date','Disbursement Date','date'],['first','First EMI Date','date'],['amount','Loan Amount','pos'],['n','No. of Installments','sel',()=>D.products.length?terms(D.products[0]):['1']],['dmode','Disbursement Mode',['Cash','Bank Transfer']],['staff','Staff Name']],
   xl:['Client','EMI','Total Repayable','Maturity'],x:l=>{const o=calc(l);return[o.name,o.emi?num(o.emi):'-',o.emi?num(o.total):'-',o.mat||'-']}},
  entries:{t:'Manual Entries (Expenses, Capital, Other Receipts)',p:'E',w:5,f:[['date','Date','date'],['type','Type',['Receipt','Payment']],['head','Head',[...RH,...PH]],['desc','Description'],['amount','Amount','pos'],['mode','Mode',['Cash','Bank Transfer','UPI']]]},
- collections:{t:'Collections',p:'R',w:5,f:[['loan','Loan','sel',()=>D.loans.map(l=>[l.id,l.id+' - '+(D.clients.find(c=>c.id==l.client)||{}).name])],['date','Collection Date','date'],['amount','Amount','pos'],['mode','Mode','sel',()=>['Cash','UPI','Bank Transfer']]],
+ collections:{t:'Collections',p:'R',w:5,f:[['loan','Loan','sel',()=>D.loans.map(l=>[l.id,l.id+' - '+(D.clients.find(c=>c.id==l.client)||{}).name])],['date','Collection Date','date'],['amount','Amount','pos'],['mode','Mode','sel',()=>['Cash','UPI','Bank Transfer']],['staff','Collected By (Staff)']],
   xl:['Client'],x:r=>{const l=D.loans.find(x=>x.id==r.loan),c=l&&D.clients.find(x=>x.id==l.client);return[c?c.name:'?']}}};
 function fld(f,t,o){
- if(t=='sel'){const op=(typeof o=='function'?o():o).map(x=>Array.isArray(x)?x:[x,x]);return`<select id="f_${f}" ${f=='product'?'onchange="sync()"':''}>${op.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>`}
+ if(t=='sel'){const op=(typeof o=='function'?o():o).map(x=>Array.isArray(x)?x:[x,x]);return`<select id="f_${f}" ${f=='product'?'onchange="sync()"':f=='client'?'onchange="stfL()"':f=='loan'?'onchange="stfC()"':''}>${op.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>`}
  if(Array.isArray(t))return fld(f,'sel',t);
  return`<input id="f_${f}" type="${t=='date'?'date':t?'number':'text'}" ${t=='date'?`value="${asOn}" ${f=='date'?'oninput="sync()"':''}`:t?'step="any"':''}>`}
 function ent(k){
@@ -140,15 +147,15 @@ function dash(){
  const B=['Regular','01-30','31-60','61-90','90+','Closed'],mx=Math.max(1,...B.map(b=>R.filter(r=>r.bucket==b).reduce((s,r)=>s+r.pos,0)));
  h+=`<h2>PAR Bucket (DPD)</h2><div class="card">${B.map(b=>{const x=R.filter(r=>r.bucket==b),p=x.reduce((s,r)=>s+r.pos,0);return`<div style="display:grid;grid-template-columns:90px 1fr 150px;gap:8px;align-items:center;margin:4px 0"><span>${b}</span><div class="bar" style="width:${p/mx*100}%"></div><span>${x.length} loans · ₹${num(p)}</span></div>`}).join('')}</div>`;
  return h}
-function pdata(){return{hd:['Loan','Client','Husband','Address','Mobile','Alt. Mobile','Branch','Group','Product','Disbursement Date','First EMI Date','Last EMI Date','Last Collection Date','Disbursed','EMI','Total EMI','EMI Paid','Due EMI','Pending EMI','Collected','Due','Overdue','POS','DPD','Bucket','Status'],
- T:rows().map(r=>[r.l.id,r.name,r.c.husband||'',r.c.address||'',r.c.mobile||'',r.c.alt||'',r.c.branch,r.c.group,r.p.name,dm2(r.l.date),dm2(dueOn(r.l,1,r.ppy)),dm2(r.mat),(lc=>lc?dm2(lc):'-')(D.collections.filter(c=>c.loan==r.l.id&&c.date<=asOn).map(c=>c.date).sort().pop()),+r.l.amount,r.emi,+r.l.n,Math.min(+r.l.n,Math.floor((r.colb||0)/r.emi)),r.emi?Math.ceil(r.over/r.emi):0,r.out>0?Math.max(0,+r.l.n-Math.min(+r.l.n,Math.floor((r.colb||0)/r.emi))):0,r.col,r.due,r.over,r.pos,r.dpd,r.bucket,r.status])}}
+function pdata(){return{hd:['Loan','Client','Husband','Address','Mobile','Alt. Mobile','Branch','Group','Staff','Product','Disbursement Date','First EMI Date','Last EMI Date','Last Collection Date','Disbursed','EMI','Total EMI','EMI Paid','Due EMI','Pending EMI','Collected','Due','Overdue','POS','DPD','Bucket','Status'],
+ T:rows().map(r=>[r.l.id,r.name,r.c.husband||'',r.c.address||'',r.c.mobile||'',r.c.alt||'',r.c.branch,r.c.group,r.l.staff||r.c.staff||'',r.p.name,dm2(r.l.date),dm2(dueOn(r.l,1,r.ppy)),dm2(r.mat),(lc=>lc?dm2(lc):'-')(D.collections.filter(c=>c.loan==r.l.id&&c.date<=asOn).map(c=>c.date).sort().pop()),+r.l.amount,r.emi,+r.l.n,Math.min(+r.l.n,Math.floor((r.colb||0)/r.emi)),r.emi?Math.ceil(r.over/r.emi):0,r.out>0?Math.max(0,+r.l.n-Math.min(+r.l.n,Math.floor((r.colb||0)/r.emi))):0,r.col,r.due,r.over,r.pos,r.dpd,r.bucket,r.status])}}
 function port(){const{hd,T}=pdata();
- return`<h2>Loan Portfolio (as on ${asOn})</h2><div class="card"><button class="p" onclick="pxls()">Download Excel (.xlsx)</button> <button class="p" onclick="pcsv()">Download CSV</button></div><div class="w">${tbl(hd,T.map(r=>r.map((v,i)=>i==13||i==14||(i>=19&&i<=22)?num(v):v)))}</div>`}
+ return`<h2>Loan Portfolio (as on ${asOn})</h2><div class="card"><button class="p" onclick="pxls()">Download Excel (.xlsx)</button> <button class="p" onclick="pcsv()">Download CSV</button></div><div class="w">${tbl(hd,T.map(r=>r.map((v,i)=>i==14||i==15||(i>=20&&i<=23)?num(v):v)))}</div>`}
 function pcsv(){const{hd,T}=pdata();saveFile('Portfolio_'+asOn+'.csv','\ufeff'+[hd,...T].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n'))}
 function pxls(){const{hd,T}=pdata();saveFile('Portfolio_'+asOn+'.xlsx',xlsx('Portfolio',[hd,...T]))}
 function bak(){return`<h2>Backup &amp; Data</h2><div class="card"><p>Data sirf is browser me save hota hai. Backup ke liye JSON copy karke kahin save karein; wapas laane ke liye paste karke Import dabayein.</p>
 <button onclick="$('#bk').value=JSON.stringify(D)">Export JSON</button> <button class="p" onclick="imp()">Import JSON</button> <button onclick="reset()">Sab data hatayein</button><textarea id="bk"></textarea></div>`}
-function imp(){try{const x=JSON.parse($('#bk').value);if(!x.clients||!x.loans||!x.collections||!x.products)throw 0;D=x;D.entries=D.entries||[];D.closures=D.closures||[];save();render()}catch(e){alert('Sahi JSON backup paste karein')}}
+function imp(){try{const x=JSON.parse($('#bk').value);if(!x.clients||!x.loans||!x.collections||!x.products)throw 0;D=x;D.entries=D.entries||[];D.closures=D.closures||[];migStaff();save();render()}catch(e){alert('Sahi JSON backup paste karein')}}
 function reset(){ask('Saara data hata dein?',()=>{D={products:defProducts(),clients:[],loans:[],collections:[],entries:[],closures:[]};save();render()})}
 let dc=null,fl='';
 const SL=[['cphoto','Client Photo'],['hphoto','Husband Photo'],['cid','Client ID Proof'],['hid','Husband ID Proof'],['addr','Address Proof']];
@@ -184,7 +191,7 @@ table{border-collapse:collapse;width:100%}td,th{border:1px solid #444;padding:5p
 .sg{display:flex;gap:14px;margin-top:56px}.sg div{flex:1;border-top:1px solid #000;text-align:center;padding-top:4px;font-size:11px}.pb{page-break-before:always}
 </style></head><body><div style='text-align:center'>${logo('#1f4fa3','#fff',56)}</div><div style='text-align:center;font-size:22px;font-weight:bold;color:#1f4fa3;letter-spacing:.5px'>श्री Enterprises</div><h1>Loan Application Form</h1>
 <div style='text-align:center;margin-bottom:8px'>Application / Loan No.: <b>${esc(l.id)}</b> &nbsp;&nbsp; Date: <b>${dm(l.date)}</b></div>
-<div class='top'><div><h3 style='margin-top:0'>Applicant Details</h3><table>${R('Client ID',c.id)}${R('Applicant Name',c.name)}${R('Husband Name',c.husband)}${R('Group',c.group)}${R('Branch',c.branch)}${R('Village',c.village)}${R('Address',c.address)}${R('Mobile',c.mobile)}${R('Alternate Mobile',c.alt)}${R('Documents on file','Client ID: '+yn[0]+' | Husband ID: '+yn[1]+' | Address proof: '+yn[2])}</table></div><div>${ph(cp,'Applicant')}${ph(hp,'Husband')}</div></div>
+<div class='top'><div><h3 style='margin-top:0'>Applicant Details</h3><table>${R('Client ID',c.id)}${R('Applicant Name',c.name)}${R('Husband Name',c.husband)}${R('Group',c.group)}${R('Branch',c.branch)}${R('Staff / Loan Officer',l.staff||c.staff)}${R('Village',c.village)}${R('Address',c.address)}${R('Mobile',c.mobile)}${R('Alternate Mobile',c.alt)}${R('Documents on file','Client ID: '+yn[0]+' | Husband ID: '+yn[1]+' | Address proof: '+yn[2])}</table></div><div>${ph(cp,'Applicant')}${ph(hp,'Husband')}</div></div>
 <h3>Loan Details</h3><table>${A.map(x=>R(x[0],x[1])).join('')}<tr><td class='k'>Purpose of Loan</td><td style='height:44px'></td></tr></table>
 <h3>Declaration</h3><p>I/We declare that the information given above is true and correct. I/We have understood the loan amount, interest rate, installment amount and due dates, and agree to repay the loan on time as per the repayment schedule attached.<br>Main/Hum ghoshit karte hain ki upar di gayi jaankari sahi hai, aur loan ki sabhi sharten samajhkar samay par repayment karne ke liye sehmat hain.</p>
 <div class='sg'><div>Applicant Signature / Thumb</div><div>Husband / Co-applicant Signature</div><div>Loan Officer</div><div>Branch Manager</div></div>
@@ -239,9 +246,9 @@ function sched(){
  if(!D.clients.some(c=>c.id==sc))sc=D.clients[0].id;
  window._sd=null;
  const c=D.clients.find(x=>x.id==sc),dm=s=>s.split('-').reverse().join('-');
- let h=`<h2>Client Repayment Schedule (as on ${dm(asOn)})</h2><div class="card"><label>Client<select onchange="sc=this.value;render()">${D.clients.map(x=>`<option value="${esc(x.id)}" ${x.id==sc?'selected':''}>${esc(x.id+' - '+x.name)}</option>`).join('')}</select></label> <button class="p" onclick="prs()">🖨 Print</button> <button onclick="dls()">Download (.html)</button><p style="margin:8px 0 0">Husband: <b>${esc(c.husband||'-')}</b> · Group: <b>${esc(c.group)}</b> · Branch: <b>${esc(c.branch)}</b> · Mobile: <b>${esc(c.mobile||'-')}${c.alt?' / '+esc(c.alt):''}</b><br>Address: <b>${esc(c.address||'-')}</b>, ${esc(c.village)}</p></div>`;
+ let h=`<h2>Client Repayment Schedule (as on ${dm(asOn)})</h2><div class="card"><label>Client<select onchange="sc=this.value;render()">${D.clients.map(x=>`<option value="${esc(x.id)}" ${x.id==sc?'selected':''}>${esc(x.id+' - '+x.name)}</option>`).join('')}</select></label> <button class="p" onclick="prs()">🖨 Print</button> <button onclick="dls()">Download (.html)</button><p style="margin:8px 0 0">Husband: <b>${esc(c.husband||'-')}</b> · Group: <b>${esc(c.group)}</b> · Branch: <b>${esc(c.branch)}</b> · Staff: <b>${esc(c.staff||'-')}</b> · Mobile: <b>${esc(c.mobile||'-')}${c.alt?' / '+esc(c.alt):''}</b><br>Address: <b>${esc(c.address||'-')}</b>, ${esc(c.village)}</p></div>`;
  const L=D.loans.filter(l=>l.client==sc);let b='';
- const info=`<b>${esc(c.name)}</b> (${esc(c.id)}) · Husband: ${esc(c.husband||'-')} · Group: ${esc(c.group)} · Branch: ${esc(c.branch)} · Mobile: ${esc(c.mobile||'-')}${c.alt?' / '+esc(c.alt):''}<br>Address: ${esc(c.address||'-')}, ${esc(c.village)}`;
+ const info=`<b>${esc(c.name)}</b> (${esc(c.id)}) · Husband: ${esc(c.husband||'-')} · Group: ${esc(c.group)} · Branch: ${esc(c.branch)} · Staff: ${esc(c.staff||'-')} · Mobile: ${esc(c.mobile||'-')}${c.alt?' / '+esc(c.alt):''}<br>Address: ${esc(c.address||'-')}, ${esc(c.village)}`;
  if(!L.length)return h+'<div class="card">Is client ka koi loan nahi hai.</div>';
  for(const l of L){const o=calc(l);if(!o.emi)continue;
   const n=+l.n,i=o.p.rate/100/o.ppy,flat=o.p.method=='Flat';let bal=+l.amount;const R=[],T=[0,0,0,0,0];
@@ -264,7 +271,7 @@ const b64=b=>btoa(String.fromCharCode(...new Uint8Array(b))),unb=s=>Uint8Array.f
 async function hp(pw,salt){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);return b64(await crypto.subtle.deriveBits({name:'PBKDF2',salt:unb(salt),iterations:100000,hash:'SHA-256'},k,256))}
 async function mkUser(id,pw,role){const salt=b64(rnd(16));return{id,role,salt,hash:await hp(pw,salt)}}
 const lm=t=>{const e=$('#lm');if(e)e.textContent=t};
-const tabOk=t=>U.role=='admin'||!['Backup','Users','Cashbook','Profit & Loss'].includes(t);
+const tabOk=t=>U.role=='admin'||!['Backup','Users','Cashbook','Profit & Loss','Staff'].includes(t);
 function sess(u){U=u;try{sessionStorage.setItem('mfi_sess',u.id)}catch(e){}tab='Dashboard';ed=null;dc=null;render()}
 function logout(){try{sessionStorage.removeItem('mfi_sess')}catch(e){}U=null;am='login';ed=null;dc=null;render()}
 function authScreen(){
@@ -363,23 +370,47 @@ function addCl(){const l=D.loans.find(x=>x.id==$('#c_loan').value);if(!l)return;
  const ty=$('#c_type').value,d=$('#c_date').value,dth=ty=='Death',rv=$('#c_rcv').value,rcv=+rv;
  if(!d||d<l.date){toast('Closure date sahi daalein (loan ki date ke baad ki)');return}
  if(rv===''||!(rcv>=0)){toast('Amount Received daalein (0 bhi chalega)');return}
- const r=clCalc(l,d,dth?0:(+$('#c_chg').value||0)),pr=Math.min(rcv,r.pos),rem=rcv-pr,ii=Math.min(r.due,rem),mode=$('#c_mode').value,note=$('#c_note').value.trim(),who=dth?$('#c_who').value:'';
+ const r=clCalc(l,d,dth?0:(+$('#c_chg').value||0)),pr=Math.min(rcv,r.pos),rem=rcv-pr,ii=Math.min(r.due,rem),mode=$('#c_mode').value,stf=$('#c_staff').value.trim(),note=$('#c_note').value.trim(),who=dth?$('#c_who').value:'';
+ if(!stf){toast('Staff ka naam daalein');return}
  ask(l.id+' ko '+ty+' se close karein? Baad mein "Reopen" se wapas khol sakte hain.',()=>{
   const id='X'+String(Math.max(0,...(D.closures||[]).map(x=>+x.id.slice(1)||0))+1).padStart(4,'0');
-  D.closures.push({id,loan:l.id,type:ty,date:d,who,pos:r.pos,due:r.due,charge:r.charge,settle:r.settle,rcv,mode,note,loss:r.pos-pr,intInc:ii,chgInc:rem-ii});save();render()})}
+  D.closures.push({id,loan:l.id,type:ty,date:d,who,staff:stf,pos:r.pos,due:r.due,charge:r.charge,settle:r.settle,rcv,mode,note,loss:r.pos-pr,intInc:ii,chgInc:rem-ii});save();render()})}
 function reopen(id){ask(id+' ko Reopen karein? Loan phir se active ho jayega.',()=>{D.closures=D.closures.filter(c=>c.id!=id);save();render()})}
 function closure(){
  const act=D.loans.filter(l=>!(D.closures||[]).some(c=>c.loan==l.id)&&calc(l).emi);
  const opt=act.map(l=>`<option value="${esc(l.id)}">${esc(l.id+' - '+((D.clients.find(c=>c.id==l.client)||{}).name||'?'))}</option>`).join('');
- const form=act.length?`<div class="form"><label>Loan<select id="c_loan" onchange="clPrev()">${opt}</select></label><label>Closure Type<select id="c_type" onchange="clPrev()"><option>Foreclosure</option><option>Death</option></select></label><label>Closure Date<input type="date" id="c_date" value="${asOn}" onchange="clPrev()"></label><label id="c_whol">Death of<select id="c_who"><option>Client</option><option>Husband</option></select></label><label id="c_chgl">Foreclosure Charge %<input type="number" step="any" id="c_chg" value="0" oninput="clPrev()"></label></div><div id="c_pv" class="kp" style="margin-bottom:10px"></div><div class="form"><label>Amount Received (Rs)<input type="number" step="any" id="c_rcv"></label><label>Mode<select id="c_mode"><option>Cash</option><option>Bank Transfer</option><option>UPI</option></select></label><label>Note<input id="c_note"></label></div><button class="p" onclick="addCl()">Close Loan</button> <small>Foreclosure: customer se settlement. Death: insurance claim ka amount. Jo principal recover nahi hua wo Profit &amp; Loss mein loss likha jata hai. Amount Received badal sakte hain.</small>`:'Koi active loan nahi hai.';
- const T=(D.closures||[]).map(c=>{const l=D.loans.find(x=>x.id==c.loan),cl=l&&D.clients.find(x=>x.id==l.client);return[c.id,c.loan,cl?cl.name:'?',c.type+(c.who?' ('+c.who+')':''),dm2(c.date),num(c.pos),num(c.due),num(c.charge),num(c.settle),num(c.rcv),num(c.loss),c.mode,c.note||'',`<button onclick="reopen('${c.id}')">Reopen</button>`]});
- return`<h2>Loan Closure (Foreclosure / Death)</h2><div class="card">${form}</div><h2>Closed Loans</h2><div class="w">${tbl(['ID','Loan','Client','Type','Date','Outstanding Principal','Unpaid Interest','Charge','Settlement Due','Received','Loss Written Off','Mode','Note',''],T,[13])}</div>`}
-const V={Dashboard:dash,Clients:()=>ent('clients'),Loans:()=>ent('loans'),Collections:()=>ent('collections'),Closure:closure,Products:()=>ent('products'),Portfolio:port,Cashbook:cashbook,'Profit & Loss':pnl,Schedule:sched,Application:appv,Backup:bak,Users:usersv};
+ const form=act.length?`<div class="form"><label>Loan<select id="c_loan" onchange="clPrev();stfX()">${opt}</select></label><label>Closure Type<select id="c_type" onchange="clPrev()"><option>Foreclosure</option><option>Death</option></select></label><label>Closure Date<input type="date" id="c_date" value="${asOn}" onchange="clPrev()"></label><label id="c_whol">Death of<select id="c_who"><option>Client</option><option>Husband</option></select></label><label id="c_chgl">Foreclosure Charge %<input type="number" step="any" id="c_chg" value="0" oninput="clPrev()"></label></div><div id="c_pv" class="kp" style="margin-bottom:10px"></div><div class="form"><label>Amount Received (Rs)<input type="number" step="any" id="c_rcv"></label><label>Mode<select id="c_mode"><option>Cash</option><option>Bank Transfer</option><option>UPI</option></select></label><label>Staff Name<input id="c_staff"></label><label>Note<input id="c_note"></label></div><button class="p" onclick="addCl()">Close Loan</button> <small>Foreclosure: customer se settlement. Death: insurance claim ka amount. Jo principal recover nahi hua wo Profit &amp; Loss mein loss likha jata hai. Amount Received badal sakte hain.</small>`:'Koi active loan nahi hai.';
+ const T=(D.closures||[]).map(c=>{const l=D.loans.find(x=>x.id==c.loan),cl=l&&D.clients.find(x=>x.id==l.client);return[c.id,c.loan,cl?cl.name:'?',c.staff||'',c.type+(c.who?' ('+c.who+')':''),dm2(c.date),num(c.pos),num(c.due),num(c.charge),num(c.settle),num(c.rcv),num(c.loss),c.mode,c.note||'',`<button onclick="reopen('${c.id}')">Reopen</button>`]});
+ return`<h2>Loan Closure (Foreclosure / Death)</h2><div class="card">${form}</div><h2>Closed Loans</h2><div class="w">${tbl(['ID','Loan','Client','Staff','Type','Date','Outstanding Principal','Unpaid Interest','Charge','Settlement Due','Received','Loss Written Off','Mode','Note',''],T,[14])}</div>`}
+let sf='';
+function staffv(){
+ const R=rng(),rs=rows(),stf=r=>r.l.staff||r.c.staff||'',CL=['Closed','Foreclosed','Death'],sm=(a,f)=>a.reduce((s,r)=>s+f(r),0),dd=r=>r.emi?Math.ceil(r.over/r.emi):0;
+ const names=[...new Set([...D.clients.map(c=>c.staff),...D.loans.map(l=>l.staff),...D.collections.map(c=>c.staff),...(D.closures||[]).map(c=>c.staff)].filter(Boolean))].sort();
+ const list=rs.some(r=>!stf(r))?[...names,'']:names,lab=n=>n||'(No staff)';
+ const h1=['Staff','Clients','Loans','Active','Disbursed','Collected','POS','Overdue','Due EMI','PAR>30','Coll. Eff.'];
+ const rowOf=(n,x,cn)=>{const pos=sm(x,r=>r.pos),due=sm(x,r=>r.due),ov=sm(x,r=>r.over);return[lab(n),cn,x.length,x.filter(r=>!CL.includes(r.status)).length,sm(x,r=>+r.l.amount),sm(x,r=>r.col),pos,ov,sm(x,dd),pos?x.filter(r=>r.dpd>30).reduce((s,r)=>s+r.pos,0)/pos:0,due?(due-ov)/due:0]};
+ const X=list.map(n=>rowOf(n,rs.filter(r=>stf(r)==n),D.clients.filter(c=>(c.staff||'')==n).length));
+ X.push(rowOf('Total',rs,D.clients.length));X[X.length-1][0]='Total';
+ const fm=r=>r.map((v,i)=>i>=4&&i<=7?num(v):i>=9?pct(v):v);
+ const S1=tbl(h1,X.map(fm));
+ const cl=D.collections.filter(c=>c.date>=cf&&c.date<=ct),cn=[...new Set(cl.map(c=>c.staff||''))].sort();
+ const q=a=>a.reduce((s,c)=>s+ +c.amount,0),C=cn.map(n=>{const a=cl.filter(c=>(c.staff||'')==n),cash=q(a.filter(c=>c.mode=='Cash'));return[lab(n),a.length,cash,q(a)-cash,q(a)]});
+ const cash=q(cl.filter(c=>c.mode=='Cash'));C.push(['Total',cl.length,cash,q(cl)-cash,q(cl)]);
+ const S2=tbl(['Staff','Receipts','Cash','Bank / UPI','Total Collected'],C.map(r=>r.map((v,i)=>i>=2?num(v):v)));
+ const L=rs.filter(r=>(!sf||stf(r)==sf)&&!CL.includes(r.status)).sort((a,b)=>b.dpd-a.dpd).map(r=>[r.l.id,r.name,r.c.village||'',r.c.mobile||'',lab(stf(r)),r.emi,dd(r),r.over,r.dpd,r.status]);
+ const hl=['Loan','Client','Village','Mobile','Staff','EMI','Due EMI','Overdue','DPD','Status'],S3=tbl(hl,L.map(r=>r.map((v,i)=>i==5||i==7?num(v):v)));
+ window._st=docWrap('Staff Report','<h1>Staff-wise Report (as on '+dm2(asOn)+')</h1>'+S1+'<h2>Collections by Staff ('+dm2(cf)+' to '+dm2(ct)+')</h2>'+S2+'<h2>Active Loans'+(sf?' - '+esc(sf):'')+'</h2>'+S3);
+ window._stx=[h1,...X.map(r=>r.map((v,i)=>i>=9?+(v*100).toFixed(1):v))];window._stl=[hl,...L];
+ const op=names.map(n=>`<option value="${esc(n)}" ${n==sf?'selected':''}>${esc(n)}</option>`).join('');
+ return`<h2>Staff Report</h2>${R}<div class="card"><button class="p" onclick="printDoc(window._st,'Staff_Report.html')">\u{1F5A8} Print</button> <button class="p" onclick="saveFile('Staff_Report_'+asOn+'.xlsx',xlsx('Staff',window._stx))">Download Excel (.xlsx)</button> <small>Portfolio figures As-On Date tak ke hain. Collections upar ki From-To date ke beech ki hain. PAR>30 aur Coll. Eff. % mein hain.</small></div>
+ <h2>Staff-wise Portfolio</h2><div class="w">${S1}</div><h2>Collections by Staff</h2><div class="w">${S2}</div>
+ <h2>Active Loans (collection list)</h2><div class="card"><label>Staff<select onchange="sf=this.value;render()"><option value="">All staff</option>${op}</select></label> <button class="p" onclick="saveFile('Staff_Loans_'+asOn+'.xlsx',xlsx('Loans',window._stl))">Download list (.xlsx)</button></div><div class="w">${S3}</div>`}
+const V={Dashboard:dash,Clients:()=>ent('clients'),Loans:()=>ent('loans'),Collections:()=>ent('collections'),Closure:closure,Products:()=>ent('products'),Portfolio:port,Staff:staffv,Cashbook:cashbook,'Profit & Loss':pnl,Schedule:sched,Application:appv,Backup:bak,Users:usersv};
 function render(){if(!U)return authScreen();$('#ason').parentNode.style.display='';$('#ason').value=asOn;
  $('#usr').innerHTML=`<span>\u{1F464} ${esc(U.id)} (${U.role}) <button onclick="pwDlg('${U.id}')">Password</button> <button onclick="logout()">Logout</button></span>`;
  if(!tabOk(tab))tab='Dashboard';
  $('#nav').innerHTML=Object.keys(V).filter(tabOk).map(t=>`<button class="${t==tab?'on':''}" onclick="tab='${t}';ed=null;render()">${t}</button>`).join('');
- $('#v').innerHTML=V[tab]();if(tab=='Loans')sync();if(tab=='Clients'&&dc)docs();if(tab=='Closure')clPrev()}
+ $('#v').innerHTML=V[tab]();if(tab=='Loans'){sync();stfL()}if(tab=='Collections')stfC();if(tab=='Clients'&&dc)docs();if(tab=='Closure'){clPrev();stfX()}}
 $('#hl').innerHTML=logo('var(--ac)','var(--bg)',40);
 render();
 </script></body></html>
