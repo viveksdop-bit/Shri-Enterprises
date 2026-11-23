@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>श्री Enterprises - Loan Manager</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--tx:#1b2333;--mu:#6b7385;--ac:#1f4fa3;--ab:#e8eefb;--bd:#dde1ea;--bad:#c0392b;--ok:#1e8449;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151c;--card:#1b2030;--tx:#e8ebf2;--mu:#98a1b5;--ac:#7aa2f7;--ab:#243050;--bd:#2c3347;--bad:#ff7b72;--ok:#56d364;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12151c;--card:#1b2030;--tx:#e8ebf2;--mu:#98a1b5;--ac:#7aa2f7;--ab:#243050;--bd:#2c3347;--bad:#ff7b72;--ok:#56d364;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 Arial,Helvetica,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--bd)}
+h1{font-size:18px;margin:0;color:var(--ac)}h2{font-size:16px;margin:16px 0 8px;color:var(--ac)}
+main{padding:12px 16px;max-width:1200px;margin:auto}
+nav{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px 0;max-width:1200px;margin:auto}
+button,input,select,textarea{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:6px 10px}
+button{cursor:pointer}button.on,button.p{background:var(--ac);color:var(--bg);border-color:var(--ac)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:12px}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:10px}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mu);gap:2px}
+.kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.kp div{background:var(--ab);border-radius:8px;padding:10px}.kp b{display:block;font-size:18px;color:var(--ac)}.kp span{font-size:12px;color:var(--mu)}
+.w{overflow-x:auto}table{border-collapse:collapse;width:100%;background:var(--card)}
+th,td{padding:6px 8px;border:1px solid var(--bd);text-align:left;white-space:nowrap}th{background:var(--ac);color:var(--bg);font-size:12px}
+td.r{text-align:right}.bad{color:var(--bad);font-weight:bold}.ok{color:var(--ok)}
+#ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;padding:0 16px}
+.lg{display:inline-block;margin-right:8px;vertical-align:middle}h1 small{font-size:12px;color:var(--mu);font-weight:normal;margin-left:8px}
+.bar{height:10px;background:var(--ac);border-radius:4px;min-width:2px}
+textarea{width:100%;height:160px;font-family:monospace;font-size:12px}
+</style></head><body>
+<header><h1><span class="lg" id="hl"></span>श्री Enterprises<small>Loan Manager</small></h1>
+<label style="flex-direction:row;align-items:center;gap:6px">As-On Date <input type="date" id="ason" onchange="asOn=this.value||today();render()"></label><span id="usr"></span></header>
+<nav id="nav"></nav><main id="v"></main><div id="ov"></div>
+<footer style="text-align:center;color:var(--mu);font-size:12px;padding:16px">&copy; श्री Enterprises</footer>
+<script>
+const $=s=>document.querySelector(s),LS='mfi_loan_manager_v3',PPY={Weekly:52,Fortnightly:26,Monthly:12};
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num=n=>Math.round(n).toLocaleString('en-IN'),pct=x=>(x*100).toFixed(1)+'%';
+const iso=d=>d.toISOString().slice(0,10),P=s=>new Date(s+'T00:00:00Z');
+const today=()=>iso(new Date(Date.now()-new Date().getTimezoneOffset()*6e4));
+const addD=(s,n)=>iso(new Date(P(s).getTime()+n*864e5)),days=(a,b)=>Math.round((P(a)-P(b))/864e5);
+function addM(s,m){const d=P(s),x=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+m,1)),last=new Date(Date.UTC(x.getUTCFullYear(),x.getUTCMonth()+1,0)).getUTCDate();x.setUTCDate(Math.min(d.getUTCDate(),last));return iso(x)}
+const defFirst=(d,fr)=>fr=='Monthly'?addM(d,1):addD(d,Math.round(365/PPY[fr]));
+const terms=p=>{const t=String(p.terms||'').split(',').map(s=>s.trim()).filter(Boolean);return t.length?t:[p.freq=='Weekly'?'13':'12']};
+const dueOn=(l,k,ppy)=>{const f=l.first||defFirst(l.date,ppy==12?'Monthly':'Weekly');return ppy==12?addM(f,k-1):addD(f,(k-1)*Math.round(365/ppy))};
+let asOn=today(),tab='Dashboard',D=null;
+const defProducts=()=>[{id:'P01',name:'Weekly - Flat 30.5%',rate:30.5,method:'Flat',freq:'Weekly',fee:4,ins:4,terms:'13'},{id:'P02',name:'Monthly - Flat 30.5%',rate:30.5,method:'Flat',freq:'Monthly',fee:4,ins:4,terms:'12,18,24'}];
+try{D=JSON.parse(localStorage.getItem(LS))}catch(e){}
+if(!D)D={products:defProducts(),clients:[],loans:[],collections:[]};
+function save(){try{localStorage.setItem(LS,JSON.stringify(D))}catch(e){}}
+D.products.forEach(p=>{if(p.fee===1&&p.ins===0.5){p.fee=4;p.ins=4}});D.entries=D.entries||[];D.closures=D.closures||[];save();
+// ---- calculation engine (same logic as the Excel tool)
+function calc(l){
+ const p=D.products.find(x=>x.id==l.product),c=D.clients.find(x=>x.id==l.client),o={l,c,p,name:c?c.name:'?'};
+ if(!p||!c)return o;
+ const a=+l.amount,n=+l.n,ppy=PPY[p.freq],r=p.rate/100,i=r/ppy;
+ o.ppy=ppy;o.emi=Math.ceil(+(p.method=='Flat'?a*(1+r*n/ppy)/n:(i?a*i/(1-Math.pow(1+i,-n)):a/n)).toFixed(6));
+ o.total=o.emi*n;o.fee=Math.round(a*p.fee/100);o.ins=Math.round(a*p.ins/100);o.mat=dueOn(l,n,ppy);
+ o.col=D.collections.filter(x=>x.loan==l.id&&x.date<=asOn).reduce((s,x)=>s+ +x.amount,0);
+ let el=0;const F=dueOn(l,1,ppy);
+ if(asOn>=F){if(ppy==12){const A=P(F),B=P(asOn);el=(B.getUTCFullYear()-A.getUTCFullYear())*12+B.getUTCMonth()-A.getUTCMonth()-(B.getUTCDate()<A.getUTCDate()?1:0)+1}else el=Math.floor(days(asOn,F)/Math.round(365/ppy))+1;el=Math.min(n,el)}
+ o.due=Math.min(o.total,el*o.emi);o.over=Math.max(0,o.due-o.col);o.out=Math.max(0,o.total-o.col);
+ const k=o.col/o.emi,g=Math.pow(1+i,k);
+ o.pos=o.out==0?0:p.method=='Flat'?Math.round(a*(1-o.col/o.total)):Math.round(Math.max(0,i?a*g-o.emi*(g-1)/i:a-o.emi*k));
+ o.dpd=o.over>0?Math.max(0,days(asOn,dueOn(l,Math.floor(k)+1,ppy))):0;
+ o.bucket=o.out==0?'Closed':o.dpd==0?'Regular':o.dpd<=30?'01-30':o.dpd<=60?'31-60':o.dpd<=90?'61-90':'90+';
+ o.status=o.out==0?'Closed':o.over>0?'Overdue':'Regular';o.colb=o.col;
+ const cz=(D.closures||[]).find(x=>x.loan==l.id&&x.date<=asOn);
+ if(cz){o.cl=cz;if(cz.type=='Foreclosure')o.col+=+cz.rcv;o.due=Math.min(o.due,o.col);o.over=0;o.out=0;o.pos=0;o.dpd=0;o.bucket='Closed';o.status=cz.type=='Death'?'Death':'Foreclosed'}
+ return o}
+const rows=()=>D.loans.map(calc).filter(r=>r.emi);
+// ---- generic entity screens
+const RH=['Opening Balance','Capital Introduced','Borrowing Received','Other Income','Other Receipt'],PH=['Salary','Rent','Office Expense','Travel','Interest on Borrowings','Bad Debt Written Off','Other Expense','Borrowing Repaid','Insurance Premium Paid','Owner Withdrawal'],EXP=PH.slice(0,7);
+const S={
+ clients:{t:'Clients',p:'C',w:4,f:[['name','Client Name'],['husband','Husband Name'],['group','Group'],['branch','Branch'],['village','Village'],['address','Address'],['mobile','Mobile'],['alt','Alternate Mobile (optional)']]},
+ products:{t:'Loan Products',p:'P',w:2,f:[['name','Product Name'],['rate','Interest % p.a.','num'],['method','Method',['Flat','Reducing']],['freq','Frequency',['Weekly','Fortnightly','Monthly']],['terms','Allowed Installments (comma se, e.g. 12,18,24)'],['fee','Processing Fee %','num'],['ins','Insurance %','num']]},
+ loans:{t:'Loan Disbursement',p:'L',w:4,f:[['client','Client','sel',()=>D.clients.map(c=>[c.id,c.id+' - '+c.name])],['product','Product','sel',()=>D.products.map(p=>[p.id,p.name])],['date','Disbursement Date','date'],['first','First EMI Date','date'],['amount','Loan Amount','pos'],['n','No. of Installments','sel',()=>D.products.length?terms(D.products[0]):['1']],['dmode','Disbursement Mode',['Cash','Bank Transfer']]],
+  xl:['Client','EMI','Total Repayable','Maturity'],x:l=>{const o=calc(l);return[o.name,o.emi?num(o.emi):'-',o.emi?num(o.total):'-',o.mat||'-']}},
+ entries:{t:'Manual Entries (Expenses, Capital, Other Receipts)',p:'E',w:5,f:[['date','Date','date'],['type','Type',['Receipt','Payment']],['head','Head',[...RH,...PH]],['desc','Description'],['amount','Amount','pos'],['mode','Mode',['Cash','Bank Transfer','UPI']]]},
+ collections:{t:'Collections',p:'R',w:5,f:[['loan','Loan','sel',()=>D.loans.map(l=>[l.id,l.id+' - '+(D.clients.find(c=>c.id==l.client)||{}).name])],['date','Collection Date','date'],['amount','Amount','pos'],['mode','Mode','sel',()=>['Cash','UPI','Bank Transfer']]],
+  xl:['Client'],x:r=>{const l=D.loans.find(x=>x.id==r.loan),c=l&&D.clients.find(x=>x.id==l.client);return[c?c.name:'?']}}};
+function fld(f,t,o){
+ if(t=='sel'){const op=(typeof o=='function'?o():o).map(x=>Array.isArray(x)?x:[x,x]);return`<select id="f_${f}" ${f=='product'?'onchange="sync()"':''}>${op.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>`}
+ if(Array.isArray(t))return fld(f,'sel',t);
+ return`<input id="f_${f}" type="${t=='date'?'date':t?'number':'text'}" ${t=='date'?`value="${asOn}" ${f=='date'?'oninput="sync()"':''}`:t?'step="any"':''}>`}
+function ent(k){
+ const s=S[k],f=s.f.map(([f,l,t,o])=>[f,l,Array.isArray(t)?'sel':t,Array.isArray(t)?t:o]);
+ let h=`<h2>${s.t}</h2>${k=='clients'&&dc?docPanel():''}<div class="card"><div class="form">${f.map(([a,l,t,o])=>`<label>${l}${fld(a,t,o)}</label>`).join('')}</div><button class="p" onclick="add('${k}')">${ed&&ed.k==k?'Save changes ('+ed.id+')':'+ Add'}</button>${ed&&ed.k==k?' <button onclick="ed=null;render()">Cancel</button>':''}</div>`;
+ const hd=['ID',...f.map(x=>x[1]),...(s.xl||[]),''];
+ return h+`<div class="w">${tbl(hd,D[k].map(r=>[r.id,...f.map(x=>r[x[0]]),...(s.x?s.x(r):[]),`${k=='clients'?`<button onclick="dc='${r.id}';render();scrollTo(0,0)">Docs</button> `:k=='loans'?`<button onclick="fl='${r.id}';tab='Application';ed=null;render()">Form</button> `:''}<button onclick="edit('${k}','${r.id}')">Edit</button> <button onclick="del('${k}','${r.id}')">Delete</button>`]),[hd.length-1])}</div>`}
+function tbl(h,r,raw=[]){return`<table><tr>${h.map(x=>`<th>${esc(x)}</th>`).join('')}</tr>${r.map(row=>`<tr>${row.map((c,i)=>{const t=raw.includes(i)?c:esc(c);return`<td class="${/^[\d,.\-%]+$/.test(String(c))?'r':''}${/Overdue|90\+/.test(c)?' bad':''}">${t}</td>`}).join('')}</tr>`).join('')}</table>`}
+function add(k){
+ const s=S[k],r={id:s.p+String(Math.max(0,...D[k].map(x=>+x.id.slice(1)||0))+1).padStart(s.w,'0')};
+ for(const[f,l,t]of s.f){const el=$('#f_'+f);if(!el)continue;const v=el.value.trim();
+  if(!v){if(f=='alt'||f=='desc'){r[f]='';continue}alert(l+' bharna zaroori hai');return}
+  if((t=='num'&&(isNaN(v)||+v<0))||(t=='pos'&&!(+v>0))){alert(l+' sahi number daalein');return}r[f]=v}
+ if(k=='loans'&&(!Number.isInteger(+r.n)||r.n>120)){alert('Installments 1 se 120 ke beech (poora number) hone chahiye');return}
+ if(k=='loans'&&r.first<r.date){alert('First EMI date disbursement date se pehle nahi ho sakti');return}
+ if(k=='collections'&&(D.closures||[]).some(c=>c.loan==r.loan)){alert('Is loan ka Foreclosure/Death closure ho chuka hai. Pehle Closure tab se Reopen karein.');return}
+ if(k=='entries'&&!(r.type=='Receipt'?RH:PH).includes(r.head)){alert('Head is Type se match nahi karta.\nReceipt heads: '+RH.join(', ')+'\nPayment heads: '+PH.join(', '));return}
+ if(k=='products'&&!/^\d+(\s*,\s*\d+)*$/.test(r.terms)){alert('Installments comma se likhein, jaise 12,18,24');return}
+ if(k=='collections'){const l=D.loans.find(x=>x.id==r.loan);if(l&&r.date<l.date){alert('Collection date disbursement se pehle nahi ho sakti');return}}
+ if(ed&&ed.k==k){r.id=ed.id;const i=D[k].findIndex(x=>x.id==ed.id);D[k][i]=r;ed=null}else D[k].push(r);save();render()}
+let ed=null;
+function edit(k,id){ed={k,id};render();const r=D[k].find(x=>x.id==id);if(!r)return;
+ if(k=='loans'){$('#f_product').value=r.product;sync()}
+ for(const f of S[k].f){const e=$('#f_'+f[0]);if(!e)continue;const v=r[f[0]]==null?'':r[f[0]];if(e.tagName=='SELECT'&&v!==''&&![...e.options].some(o=>o.value==v))e.add(new Option(v,v));if(!(e.tagName=='SELECT'&&v===''))e.value=v}
+ scrollTo(0,0)}
+function dlg(m,b){$('#ov').innerHTML=`<div class="card" style="max-width:420px;margin:20vh auto 0;white-space:pre-line">${esc(m)}<div style="margin-top:12px">${b}</div></div>`;$('#ov').style.display='block'}
+let cb=null;
+function toast(m){cb=null;dlg(m,'<button class="p" onclick="hide()">OK</button>')}
+function ask(m,f){cb=f;dlg(m,'<button class="p" onclick="yes()">Haan, aage badhein</button> <button onclick="hide()">Cancel</button>')}
+function yes(){const f=cb;hide();if(f)f()}
+function hide(){cb=null;$('#ov').style.display='none'}
+window.alert=toast;
+function sync(){const pe=$('#f_product'),ne=$('#f_n');if(!pe||!ne)return;const p=D.products.find(x=>x.id==pe.value);if(!p)return;
+ const cur=ne.value,t=terms(p);ne.innerHTML=t.map(x=>`<option>${x}</option>`).join('');if(t.includes(cur))ne.value=cur;
+ const d=$('#f_date').value;if(d)$('#f_first').value=defFirst(d,p.freq)}
+function del(k,id){
+ if(k=='products'&&D.loans.some(l=>l.product==id)){alert('Is product par loans hain - pehle un loans ko delete karein');return}
+ const ls=k=='clients'?D.loans.filter(l=>l.client==id).map(l=>l.id):k=='loans'?[id]:[];
+ const cs=D.collections.filter(c=>ls.includes(c.loan)).length;
+ let m=id+' delete karein?';
+ if(k=='clients'&&ls.length)m+='\n\nIske '+ls.length+' loan(s) aur '+cs+' collection(s) bhi delete ho jayenge.';
+ if(k=='loans'&&cs)m+='\n\nIske '+cs+' collection(s) bhi delete ho jayenge.';
+ ask(m,()=>{
+ if(k=='clients')SL.forEach(s=>fdel(id+':'+s[0]));
+ if(k=='clients')D.loans=D.loans.filter(l=>!ls.includes(l.id));
+ if(k=='clients'||k=='loans'){D.collections=D.collections.filter(c=>!ls.includes(c.loan));D.closures=(D.closures||[]).filter(c=>!ls.includes(c.loan))}
+ D[k]=D[k].filter(x=>x.id!=id);save();render()})}
+// ---- dashboard / portfolio / backup
+function dash(){
+ const R=rows(),sm=f=>R.reduce((s,r)=>s+f(r),0),pos=sm(r=>r.pos),due=sm(r=>r.due),over=sm(r=>r.over);
+ const par=t=>pos?R.filter(r=>r.dpd>t).reduce((s,r)=>s+r.pos,0)/pos:0;
+ const K=[['Clients',D.clients.length],['Loans',D.loans.length],['Active Loans',R.filter(r=>!['Closed','Foreclosed','Death'].includes(r.status)).length],['Disbursed ₹',num(sm(r=>+r.l.amount))],['Total Repayable ₹',num(sm(r=>r.total))],['Collected ₹',num(sm(r=>r.col))],['Outstanding ₹',num(sm(r=>r.out))],['POS ₹',num(pos)],['Overdue ₹',num(over)],['Overdue Loans',R.filter(r=>r.status=='Overdue').length],['Foreclosed / Death',R.filter(r=>r.cl).length],['PAR > 30',pct(par(30))],['PAR > 90',pct(par(90))],['Collection Efficiency',due?pct((due-over)/due):'0.0%']];
+ let h=D.clients.length?'':`<div class="card">Abhi koi data nahi hai. Products tab check karein, phir Clients se shuru karein.</div>`;
+ h+=`<div class="kp">${K.map(([a,b])=>`<div><span>${a}</span><b>${b}</b></div>`).join('')}</div><h2>Branch-wise Summary</h2>`;
+ const br=[...new Set(D.clients.map(c=>c.branch))];
+ h+=`<div class="w">${tbl(['Branch','Clients','Loans','Disbursed','Collected','POS','Overdue','PAR>30','Coll. Eff.'],br.map(b=>{const x=R.filter(r=>r.c.branch==b),s=f=>x.reduce((a,r)=>a+f(r),0),p=s(r=>r.pos),d=s(r=>r.due),o=s(r=>r.over);
+  return[b,D.clients.filter(c=>c.branch==b).length,x.length,num(s(r=>+r.l.amount)),num(s(r=>r.col)),num(p),num(o),p?pct(x.filter(r=>r.dpd>30).reduce((a,r)=>a+r.pos,0)/p):'0.0%',d?pct((d-o)/d):'0.0%']}))}</div>`;
+ const B=['Regular','01-30','31-60','61-90','90+','Closed'],mx=Math.max(1,...B.map(b=>R.filter(r=>r.bucket==b).reduce((s,r)=>s+r.pos,0)));
+ h+=`<h2>PAR Bucket (DPD)</h2><div class="card">${B.map(b=>{const x=R.filter(r=>r.bucket==b),p=x.reduce((s,r)=>s+r.pos,0);return`<div style="display:grid;grid-template-columns:90px 1fr 150px;gap:8px;align-items:center;margin:4px 0"><span>${b}</span><div class="bar" style="width:${p/mx*100}%"></div><span>${x.length} loans · ₹${num(p)}</span></div>`}).join('')}</div>`;
+ return h}
+function pdata(){return{hd:['Loan','Client','Husband','Address','Mobile','Alt. Mobile','Branch','Group','Product','Disbursed','EMI','Collected','Due','Overdue','POS','DPD','Bucket','Status'],
+ T:rows().map(r=>[r.l.id,r.name,r.c.husband||'',r.c.address||'',r.c.mobile||'',r.c.alt||'',r.c.branch,r.c.group,r.p.name,+r.l.amount,r.emi,r.col,r.due,r.over,r.pos,r.dpd,r.bucket,r.status])}}
+function port(){const{hd,T}=pdata();
+ return`<h2>Loan Portfolio (as on ${asOn})</h2><div class="card"><button class="p" onclick="pxls()">Download Excel (.xlsx)</button> <button class="p" onclick="pcsv()">Download CSV</button></div><div class="w">${tbl(hd,T.map(r=>r.map((v,i)=>i>=9&&i<=14?num(v):v)))}</div>`}
+function pcsv(){const{hd,T}=pdata();saveFile('Portfolio_'+asOn+'.csv','\ufeff'+[hd,...T].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n'))}
+function pxls(){const{hd,T}=pdata();saveFile('Portfolio_'+asOn+'.xlsx',xlsx('Portfolio',[hd,...T]))}
+function bak(){return`<h2>Backup &amp; Data</h2><div class="card"><p>Data sirf is browser me save hota hai. Backup ke liye JSON copy karke kahin save karein; wapas laane ke liye paste karke Import dabayein.</p>
+<button onclick="$('#bk').value=JSON.stringify(D)">Export JSON</button> <button class="p" onclick="imp()">Import JSON</button> <button onclick="reset()">Sab data hatayein</button><textarea id="bk"></textarea></div>`}
+function imp(){try{const x=JSON.parse($('#bk').value);if(!x.clients||!x.loans||!x.collections||!x.products)throw 0;D=x;D.entries=D.entries||[];D.closures=D.closures||[];save();render()}catch(e){alert('Sahi JSON backup paste karein')}}
+function reset(){ask('Saara data hata dein?',()=>{D={products:defProducts(),clients:[],loans:[],collections:[],entries:[],closures:[]};save();render()})}
+let dc=null,fl='';
+const SL=[['cphoto','Client Photo'],['hphoto','Husband Photo'],['cid','Client ID Proof'],['hid','Husband ID Proof'],['addr','Address Proof']];
+let _db;function idb(){return _db||(_db=new Promise((ok,no)=>{try{const q=indexedDB.open('mfi_files',1);q.onupgradeneeded=()=>q.result.createObjectStore('f');q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)}catch(e){no(e)}}))}
+function tx(m,f){return idb().then(d=>new Promise((ok,no)=>{const r=f(d.transaction('f',m).objectStore('f'));r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)}))}
+const fget=k=>tx('readonly',s=>s.get(k)).catch(()=>null),fput=(k,v)=>tx('readwrite',s=>s.put(v,k)),fdel=k=>tx('readwrite',s=>s.delete(k)).catch(()=>{});
+function shrink(file){return new Promise((ok,no)=>{const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{const s=Math.min(1,1200/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);c.toBlob(b=>{URL.revokeObjectURL(u);b?ok(b):no()},'image/jpeg',.8)};im.onerror=()=>no();im.src=u})}
+async function upl(id,slot,inp){const f=inp.files[0];if(!f)return;
+ try{let b=f;if(f.type.startsWith('image/'))b=await shrink(f);else if(f.type=='application/pdf'){if(f.size>3e6){toast('PDF 3 MB se chhoti honi chahiye');return}}else{toast('Sirf photo (JPG/PNG) ya PDF upload karein');return}
+  await fput(id+':'+slot,{blob:b,type:b.type,name:f.name});docs()}catch(e){toast('File save nahi ho payi. Dobara try karein.')}}
+async function docs(){if(!dc)return;
+ for(const[s]of SL){const el=$('#d_'+s);if(!el)continue;const r=await fget(dc+':'+s);
+  el.innerHTML=r?(r.type.startsWith('image/')?`<img src="${URL.createObjectURL(r.blob)}" style="max-height:90px;max-width:100%;border-radius:4px;cursor:pointer" onclick="vw('${s}')"><br><small>${esc(r.name)}</small> `:`<span>PDF: ${esc(r.name)}</span> <button onclick="vw('${s}')">View</button> `)+`<button onclick="rm('${s}')">Remove</button>`:'<small>Upload nahi hua</small>'}}
+async function vw(s){const r=await fget(dc+':'+s);if(!r)return;const u=URL.createObjectURL(r.blob);
+ $('#ov').innerHTML=`<div class="card" style="max-width:min(900px,94vw);margin:4vh auto 0;text-align:center">${r.type.startsWith('image/')?`<img src="${u}" style="max-width:100%;max-height:75vh">`:`<iframe src="${u}" style="width:100%;height:75vh;border:0"></iframe>`}<div style="margin-top:10px"><button class="p" onclick="hide()">Close</button></div></div>`;$('#ov').style.display='block'}
+function rm(s){ask('Ye file hata dein?',async()=>{await fdel(dc+':'+s);docs()})}
+function docPanel(){const c=D.clients.find(x=>x.id==dc);if(!c){dc=null;return''}
+ return`<div class="card"><b>Documents - ${esc(c.id+' '+c.name)}</b> <button onclick="dc=null;render()" style="float:right">Close</button><div class="form" style="margin-top:10px">${SL.map(([s,l])=>`<div><label>${l}<input type="file" accept="image/*,application/pdf" onchange="upl('${dc}','${s}',this)"></label><div id="d_${s}" style="margin-top:6px"></div></div>`).join('')}</div><small>Photo apne aap compress hoti hai; PDF 3 MB tak. Files sirf is browser me save hoti hain (Backup JSON me nahi aati).</small></div>`}
+async function formHtml(id){
+ const l=D.loans.find(x=>x.id==id),o=calc(l),c=o.c||{},p=o.p||{},dm=s=>s?s.split('-').reverse().join('-'):'-';
+ const img=async s=>{const r=await fget(c.id+':'+s);if(!r||!r.type.startsWith('image/'))return'';return new Promise(ok=>{const f=new FileReader();f.onload=()=>ok(f.result);f.readAsDataURL(r.blob)})};
+ const has=async s=>(await fget(c.id+':'+s))?'Haan':'Nahi';
+ const cp=await img('cphoto'),hp=await img('hphoto'),yn=[await has('cid'),await has('hid'),await has('addr')];
+ const ph=(src,t)=>`<div class='ph'>${src?`<img src='${src}'>`:esc(t)}</div><div class='cap'>${esc(t)}</div>`;
+ const R=(a,b)=>`<tr><td class='k'>${a}</td><td>${esc(b==null||b===''?'-':b)}</td></tr>`;
+ const A=o.emi?[['Loan Amount',num(l.amount)+' Rs'],['Product',p.name],['Interest Rate',p.rate+'% p.a. ('+p.method+')'],['Installments',l.n+' x '+p.freq],['Installment Amount',num(o.emi)+' Rs'],['First EMI Date',dm(l.first||dueOn(l,1,o.ppy))],['Last EMI Date',dm(o.mat)],['Total Interest',num(o.total-l.amount)+' Rs'],['Total Repayable',num(o.total)+' Rs'],['Processing Fee',num(o.fee)+' Rs'],['Insurance',num(o.ins)+' Rs'],['Net Amount Disbursed',num(o.net=l.amount-o.fee-o.ins)+' Rs']]:[['Loan Amount',num(l.amount)+' Rs']];
+ let sch='';if(o.emi)for(let k=1;k<=+l.n;k++)sch+=`<tr><td>${k}</td><td>${dm(dueOn(l,k,o.ppy))}</td><td style='text-align:right'>${num(o.emi)}</td><td></td></tr>`;
+ return`<!DOCTYPE html><html><head><meta charset='utf-8'><title>श्री Enterprises - Loan Application ${esc(l.id)}</title><style>
+@page{size:A4;margin:12mm}body{font:12px/1.4 Arial,sans-serif;color:#000;background:#fff;margin:0;padding:14px}
+h1{text-align:center;font-size:19px;margin:0 0 4px}h3{background:#1f4fa3;color:#fff;padding:4px 8px;margin:12px 0 6px;font-size:13px}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #444;padding:5px 7px;vertical-align:top;text-align:left}.k{width:34%;background:#e8eefb;font-weight:bold}
+.top{display:flex;gap:14px}.top>div:first-child{flex:1}.ph{width:105px;height:125px;border:1px solid #444;display:flex;align-items:center;justify-content:center;color:#777;font-size:11px;overflow:hidden}.ph img{width:100%;height:100%;object-fit:cover}.cap{font-size:10px;text-align:center;margin:2px 0 8px}
+.sg{display:flex;gap:14px;margin-top:56px}.sg div{flex:1;border-top:1px solid #000;text-align:center;padding-top:4px;font-size:11px}.pb{page-break-before:always}
+</style></head><body><div style='text-align:center'>${logo('#1f4fa3','#fff',56)}</div><div style='text-align:center;font-size:22px;font-weight:bold;color:#1f4fa3;letter-spacing:.5px'>श्री Enterprises</div><h1>Loan Application Form</h1>
+<div style='text-align:center;margin-bottom:8px'>Application / Loan No.: <b>${esc(l.id)}</b> &nbsp;&nbsp; Date: <b>${dm(l.date)}</b></div>
+<div class='top'><div><h3 style='margin-top:0'>Applicant Details</h3><table>${R('Client ID',c.id)}${R('Applicant Name',c.name)}${R('Husband Name',c.husband)}${R('Group',c.group)}${R('Branch',c.branch)}${R('Village',c.village)}${R('Address',c.address)}${R('Mobile',c.mobile)}${R('Alternate Mobile',c.alt)}${R('Documents on file','Client ID: '+yn[0]+' | Husband ID: '+yn[1]+' | Address proof: '+yn[2])}</table></div><div>${ph(cp,'Applicant')}${ph(hp,'Husband')}</div></div>
+<h3>Loan Details</h3><table>${A.map(x=>R(x[0],x[1])).join('')}<tr><td class='k'>Purpose of Loan</td><td style='height:44px'></td></tr></table>
+<h3>Declaration</h3><p>I/We declare that the information given above is true and correct. I/We have understood the loan amount, interest rate, installment amount and due dates, and agree to repay the loan on time as per the repayment schedule attached.<br>Main/Hum ghoshit karte hain ki upar di gayi jaankari sahi hai, aur loan ki sabhi sharten samajhkar samay par repayment karne ke liye sehmat hain.</p>
+<div class='sg'><div>Applicant Signature / Thumb</div><div>Husband / Co-applicant Signature</div><div>Loan Officer</div><div>Branch Manager</div></div>
+<div class='pb'><div style='text-align:center'>${logo('#1f4fa3','#fff',56)}</div><div style='text-align:center;font-size:22px;font-weight:bold;color:#1f4fa3'>श्री Enterprises</div><h1>Repayment Schedule</h1><div style='text-align:center;margin-bottom:8px'>${esc(c.name||'')} &middot; Loan ${esc(l.id)} &middot; ${esc(p.name||'')}</div>
+<table><tr><th>Inst. No</th><th>Due Date</th><th>Installment (Rs)</th><th>Received (Date / Sign)</th></tr>${sch}</table><div class='cap' style='margin-top:14px'>श्री Enterprises</div></div></body></html>`}
+let fq=0;
+function appv(){
+ if(!D.loans.length)return'<h2>Loan Application Form</h2><div class="card">Pehle Loans tab me loan add karein.</div>';
+ if(!D.loans.some(l=>l.id==fl))fl=D.loans[0].id;
+ setTimeout(prevForm,0);
+ return`<h2>Loan Application Form</h2><div class="card"><label>Loan<select onchange="fl=this.value;render()">${D.loans.map(l=>`<option value="${esc(l.id)}" ${l.id==fl?'selected':''}>${esc(l.id+' - '+((D.clients.find(c=>c.id==l.client)||{}).name||'?'))}</option>`).join('')}</select></label><p style="margin:8px 0 0"><button class="p" onclick="prf()">🖨 Print form</button> <button onclick="dlf()">Download form (.html)</button> <small>Print (A4) karke client se signature karayein. Form me client/husband ki photo (agar upload ki hai), loan details aur repayment schedule aati hai.</small></p></div><iframe id="fr" style="width:100%;height:1250px;border:1px solid var(--bd);background:#fff;border-radius:8px"></iframe>`}
+async function prevForm(){const f=$('#fr');if(!f)return;const my=++fq,h=await formHtml(fl);if(my==fq&&f)f.srcdoc=h}
+const LW=1196,LH=848,LP='M340 352Q341 351 340 351Q338 352 336 353Q334 355 330 355Q326 355 322 356Q319 358 311 358Q303 358 308 360Q312 360 317 360Q322 360 327 359Q332 358 336 355Q340 353 340 352ZM403 334Q406 332 393 333Q381 334 380 335Q378 336 360 337Q340 338 336 339Q331 340 327 340Q324 340 322 341Q320 342 314 342Q308 342 304 343Q301 344 300 345Q298 346 295 346Q292 346 291 347Q290 348 287 348Q284 348 276 351Q268 354 268 354Q268 355 278 355Q289 356 294 357Q300 358 300 358Q300 358 300 358Q299 357 296 356Q293 356 292 354Q292 352 292 351Q293 350 311 347Q328 344 353 342Q378 340 384 340Q391 338 396 337Q401 336 403 334ZM457 303Q462 300 458 301Q454 301 450 302Q446 304 408 304Q369 304 368 304Q367 305 365 304Q364 304 346 304Q328 304 327 304Q326 305 322 305Q318 305 316 306Q313 308 309 308Q304 308 303 309Q301 310 297 310Q294 310 281 316Q268 321 260 326Q250 332 237 343Q224 354 223 355Q222 356 223 356Q224 356 227 354Q231 352 241 346Q250 340 266 332Q280 324 301 317Q322 310 332 309Q342 308 349 308Q355 308 356 307Q356 306 395 308Q433 308 442 307Q452 306 457 303ZM1142 311Q1142 306 1139 302Q1137 298 1134 296Q1130 293 1123 293Q1116 293 1106 292Q1097 290 1091 290Q1086 290 1084 291Q1082 292 1076 292Q1070 292 1069 292Q1068 291 1059 291Q1050 291 1050 290Q1049 290 1043 290Q1037 290 1036 288Q1034 286 1034 262Q1034 238 1032 230Q1030 222 1028 219Q1026 216 1023 213Q1020 210 1018 209Q1014 207 1010 203Q1006 199 998 196Q990 194 987 192Q984 189 976 186Q970 184 964 184Q958 184 957 183Q955 182 951 182Q946 182 943 181Q939 180 918 180Q898 180 894 181Q891 182 885 182Q878 182 871 186Q863 189 859 190Q855 190 853 192Q850 193 846 194Q842 195 836 200Q828 205 824 210Q820 214 818 218Q816 220 814 228Q812 236 810 262Q808 287 808 288Q807 288 806 305Q804 322 800 352Q796 382 796 394Q795 406 794 407Q793 408 785 402Q777 395 752 380Q726 366 727 364Q728 363 738 357Q748 350 756 345Q763 339 770 332Q776 325 780 320Q784 315 786 310Q788 305 790 300Q792 296 792 288Q792 280 789 272Q786 264 782 260Q779 256 772 250Q765 245 758 242Q752 239 750 239Q748 239 744 236Q738 234 736 234Q734 234 733 233Q732 232 721 230Q710 228 681 228Q652 228 645 228Q638 229 636 230Q634 231 631 231Q628 231 617 234Q606 236 598 241Q590 246 586 252Q581 256 579 260Q577 264 576 269Q575 274 575 278Q575 282 576 287Q577 292 580 300Q584 307 590 315Q596 323 608 335Q620 347 628 354Q636 362 637 363Q637 364 635 366Q633 367 606 376Q580 384 577 386Q574 387 570 388Q566 388 555 393Q543 398 537 400Q532 401 525 404Q519 408 517 408Q514 408 502 413Q490 418 459 438Q427 457 422 461Q418 464 402 479Q388 494 380 502Q372 512 364 524Q355 536 350 546Q344 556 341 565Q338 574 336 582Q335 590 335 598Q335 607 338 617Q340 627 344 635Q348 643 353 650Q358 656 364 662Q370 669 378 675Q386 680 395 686Q404 692 416 698Q426 704 444 710Q460 716 482 722Q504 728 530 733Q554 738 563 738Q571 738 575 740Q580 740 585 740Q590 740 591 741Q592 742 597 742Q603 742 604 742Q604 742 614 742Q623 742 624 743Q624 744 655 743Q685 742 686 742Q686 742 696 741Q706 740 720 738Q735 734 736 733Q738 731 736 730Q734 728 731 728Q728 728 725 729Q722 730 699 730Q676 730 672 729Q667 728 651 728Q636 728 632 727Q629 726 621 726Q612 726 611 725Q609 724 603 724Q596 724 594 723Q592 722 588 722Q584 722 582 721Q579 720 572 720Q566 720 560 719Q554 718 547 716Q540 714 538 714Q535 714 534 713Q532 712 528 712Q524 712 519 710Q513 708 503 706Q494 705 484 701Q475 697 472 696Q468 696 466 694Q463 693 459 692Q454 691 442 685Q430 679 427 676Q424 672 419 670Q414 668 405 659Q396 650 396 648Q395 646 391 640Q388 634 385 626Q382 619 382 612Q382 604 383 596Q384 588 386 583Q388 578 392 570Q396 560 402 553Q406 546 414 536Q422 526 432 516Q442 506 462 489Q482 472 492 465Q500 458 532 442Q564 424 581 418Q598 410 618 403Q638 396 662 388Q686 382 697 387Q707 392 725 404Q743 414 748 420Q754 425 754 428Q754 430 752 432Q751 434 748 437Q744 439 736 442Q728 445 725 446Q722 446 718 448Q714 450 708 450Q702 451 692 454Q683 456 680 456Q676 456 670 458Q664 460 658 460Q652 461 650 462Q648 463 648 464Q649 466 652 467Q656 468 689 467Q722 466 726 466Q730 464 739 464Q748 462 762 460Q775 456 783 452Q790 448 792 448Q793 448 794 448Q794 449 794 478Q795 508 798 522Q800 536 801 540Q802 543 806 551Q810 559 814 564Q818 569 822 573Q826 577 832 582Q840 586 848 590Q858 594 874 598Q892 602 895 602Q898 602 902 604Q906 604 913 604Q919 604 920 605Q920 606 935 606Q949 606 964 604Q980 602 980 602Q981 603 981 610Q981 616 982 617Q982 618 982 632Q982 646 984 660Q987 673 989 680Q991 687 998 701Q1004 715 1010 724Q1016 732 1022 738Q1028 744 1034 748Q1040 752 1048 755Q1054 758 1064 761Q1072 764 1086 764Q1099 764 1100 764Q1100 764 1104 764Q1107 764 1116 761Q1124 758 1134 753Q1145 748 1152 741Q1159 735 1162 730Q1166 726 1168 722Q1170 718 1171 713Q1172 708 1172 705Q1172 702 1168 702Q1165 702 1149 712Q1134 722 1127 725Q1121 728 1119 728Q1117 728 1114 730Q1111 732 1105 734Q1099 736 1090 736Q1080 736 1079 735Q1077 734 1073 734Q1070 733 1066 730Q1062 728 1061 728Q1060 728 1059 725Q1058 723 1055 720Q1052 718 1048 709Q1044 700 1040 690Q1038 679 1036 666Q1034 652 1034 646Q1034 640 1033 639Q1032 638 1032 623Q1032 608 1032 608Q1032 607 1032 596Q1032 585 1034 584Q1034 582 1047 576Q1059 570 1066 565Q1072 560 1072 560Q1073 558 1072 558Q1070 557 1068 558Q1066 559 1063 559Q1060 559 1055 560Q1050 562 1048 563Q1046 564 1040 564Q1034 564 1033 563Q1032 562 1033 445Q1034 329 1036 328Q1037 326 1083 327Q1129 328 1131 327Q1132 326 1136 322Q1140 319 1140 317Q1142 315 1142 311ZM741 260Q750 264 754 270Q757 276 757 282Q757 288 754 294Q751 301 746 308Q740 314 728 323Q717 332 710 337Q702 342 700 342Q698 342 690 346Q682 351 680 351Q678 350 675 347Q671 344 665 340Q659 336 647 326Q636 316 629 308Q622 299 620 292Q616 284 616 278Q616 272 621 266Q626 261 632 257Q638 254 646 251Q652 248 664 248Q676 248 677 247Q678 246 693 248Q709 248 720 252Q732 254 741 260ZM906 209Q914 208 925 208Q936 208 938 208Q940 208 955 216Q970 223 972 226Q975 228 978 234Q982 240 984 250Q987 260 987 271Q987 282 988 284Q988 286 987 287Q986 288 963 288Q940 289 940 288Q939 288 924 288Q908 288 906 288Q904 287 900 290Q894 292 893 294Q891 296 890 300Q889 302 889 305Q889 307 890 311Q892 315 895 318Q898 320 901 322Q904 324 942 324Q980 324 983 325Q986 326 987 326Q988 327 987 391Q986 455 986 456Q985 456 985 473Q985 489 984 490Q984 490 983 532Q982 572 980 574Q978 576 975 576Q972 576 966 578Q959 580 950 580Q942 580 940 579Q938 578 932 577Q924 576 913 573Q902 570 888 565Q874 560 868 555Q862 550 860 550Q859 550 855 544Q850 539 848 534Q846 528 844 522Q842 515 842 501Q842 486 842 486Q842 485 842 476Q842 466 843 466Q844 465 844 459Q844 452 844 445Q846 437 849 368Q852 300 853 299Q854 298 854 293Q854 288 858 269Q862 249 868 238Q874 228 876 224Q878 221 888 216Q898 210 906 209ZM44 429Q36 446 33 454Q30 464 28 476Q25 488 24 500Q24 511 26 522Q27 534 30 546Q34 557 40 568Q45 580 51 590Q57 599 65 610Q74 620 86 632Q98 645 110 656Q122 666 138 678Q154 690 170 701Q186 712 202 720Q216 730 239 742Q261 754 291 765Q320 776 348 784Q376 792 379 793Q383 794 398 798Q412 802 444 807Q476 812 479 812Q482 812 491 814Q500 816 510 817Q520 818 521 818Q522 818 526 818Q530 818 531 819Q532 820 541 820Q550 820 561 822Q572 824 620 824Q669 824 675 824Q682 822 694 822Q707 822 730 818Q752 816 781 808Q810 802 830 794Q850 786 864 780Q878 772 884 768Q891 764 902 756Q912 748 915 746Q918 742 917 741Q916 740 915 740Q913 739 909 741Q906 743 902 744Q898 744 888 748Q877 752 874 752Q870 752 868 754Q866 755 861 756Q856 756 853 758Q850 759 848 759Q846 759 842 760Q838 762 837 762Q836 762 833 764Q830 765 821 766Q812 768 806 770Q800 772 784 774Q768 776 764 778Q762 779 758 779Q754 779 753 780Q751 781 749 781Q746 781 744 782Q742 783 738 783Q733 783 732 784Q730 785 728 784Q724 784 719 786Q714 787 707 787Q700 787 696 788Q692 789 677 790Q662 791 662 792Q661 792 632 792Q604 793 603 794Q602 794 588 794Q574 795 572 794Q570 793 563 793Q556 793 555 792Q554 792 531 791Q508 790 508 790Q507 789 498 789Q490 789 486 788Q483 787 481 787Q478 787 476 786Q474 785 468 784Q462 784 456 782Q450 781 446 781Q442 781 438 780Q435 778 432 778Q429 778 427 777Q426 776 418 776Q410 775 404 774Q400 772 397 770Q394 769 392 769Q390 769 386 768Q383 766 379 766Q374 765 368 762Q362 760 354 758Q346 757 341 754Q336 752 332 752Q330 751 325 748Q320 746 319 746Q317 746 314 744Q310 742 309 742Q308 742 296 737Q284 732 283 732Q282 732 276 728Q270 724 268 724Q266 723 264 721Q262 719 258 718Q254 716 252 714Q250 712 246 710Q240 708 234 703Q228 698 226 698Q224 698 217 692Q210 688 206 684Q202 680 198 678Q194 676 189 670Q184 665 179 662Q174 659 159 644Q144 629 141 625Q138 620 136 618Q132 615 123 601Q114 586 113 584Q112 580 110 576Q108 572 106 566Q104 560 102 554Q100 548 99 544Q98 541 98 538Q98 534 96 531Q96 527 95 508Q94 488 96 480Q98 470 100 462Q102 454 104 446Q108 438 116 422Q124 406 132 394Q140 382 152 366Q164 352 173 342Q182 333 198 318Q214 304 232 290Q250 276 274 260Q298 244 329 228Q360 212 384 200Q410 188 452 172Q494 156 514 148Q534 142 541 137Q548 132 549 131Q550 130 551 126Q552 124 551 120Q550 118 548 115Q546 113 543 113Q540 113 538 112Q536 110 534 110Q532 110 531 111Q530 112 526 112Q522 112 508 116Q494 120 492 122Q490 123 487 123Q484 123 476 127Q468 131 465 132Q462 132 461 133Q460 134 458 134Q456 134 444 139Q432 144 430 146Q429 147 427 147Q424 147 419 150Q413 152 411 154Q409 155 406 156Q402 156 399 158Q396 161 394 161Q392 161 389 163Q386 165 383 165Q380 165 365 172Q350 180 347 180Q344 180 340 182Q334 184 326 189Q317 194 315 194Q312 194 310 196Q306 199 306 199Q304 199 300 202Q296 204 294 206Q292 208 289 209Q286 210 275 217Q264 224 242 238Q220 253 200 268Q180 283 168 292Q156 301 140 316Q122 330 108 346Q92 361 92 362Q92 364 88 367Q84 370 80 376Q76 380 64 396Q53 412 44 429ZM593 85Q593 90 594 92Q596 95 599 98Q602 100 612 106Q622 110 636 114Q650 116 666 117Q682 118 690 116Q697 116 709 112Q722 110 744 108Q766 106 774 104Q783 102 802 95Q820 88 832 86Q842 82 853 82Q864 80 876 78Q888 76 892 76Q897 76 898 76Q898 76 911 76Q923 76 938 79Q952 82 961 84Q970 86 974 86Q977 86 979 86Q980 85 981 83Q982 80 981 78Q980 76 977 73Q974 70 968 66Q963 64 955 63Q946 63 944 62Q941 62 940 61Q938 60 916 60Q892 60 891 60Q890 59 889 60Q888 60 883 60Q878 60 877 61Q875 62 872 62Q868 62 866 63Q863 64 858 64Q852 64 851 65Q849 66 846 66Q842 66 840 67Q838 68 832 69Q827 70 822 70Q818 70 817 71Q816 72 812 72Q808 72 802 74Q796 76 792 76Q786 77 784 78Q782 80 780 80Q778 79 773 80Q768 81 765 82Q762 84 760 84Q756 84 751 86Q746 88 739 88Q733 88 727 90Q722 92 714 93Q706 94 687 94Q668 94 663 92Q658 91 656 91Q654 91 650 87Q645 82 644 81Q644 79 644 77Q644 74 646 70Q648 64 650 62Q652 60 658 54Q664 50 667 47Q669 44 659 44Q650 44 637 49Q624 54 618 57Q612 60 608 64Q604 67 601 70Q598 72 596 76Q593 80 593 85ZM1029 71Q1030 70 1027 65Q1025 60 1023 58Q1022 56 1019 56Q1017 56 1014 52Q1010 50 1008 48Q1005 48 1004 46Q1002 45 997 42Q992 40 988 39Q983 38 980 36Q978 35 972 34Q965 34 964 33Q962 32 960 32Q957 32 956 31Q954 30 952 30Q948 30 943 28Q938 27 906 26Q874 24 873 25Q872 26 859 26Q846 26 844 27Q842 28 836 28Q828 28 828 28Q827 27 820 28Q813 28 812 29Q810 30 807 30Q804 30 801 31Q799 32 794 32Q790 31 788 32Q786 34 781 34Q776 33 767 36Q758 38 748 39Q739 40 736 41Q732 43 727 42Q722 42 720 42Q718 43 716 44Q714 46 711 46Q708 45 694 52Q680 59 676 63Q672 66 670 68Q669 70 669 72Q669 73 670 75Q672 76 674 78Q677 80 681 80Q684 82 693 82Q701 82 704 82Q706 80 711 80Q715 80 739 72Q762 64 786 58Q810 52 828 48Q846 44 856 43Q868 42 873 42Q878 42 879 41Q880 40 896 40Q912 40 913 41Q914 42 924 42Q934 42 937 44Q940 44 946 45Q951 46 971 51Q991 56 1010 64Q1029 72 1029 71Z';
+const logo=(bg,fg,s)=>`<svg width="${Math.round(s*LW/LH)}" height="${s}" viewBox="0 0 ${LW} ${LH}" style="vertical-align:middle"><rect width="${LW}" height="${LH}" rx="48" style="fill:${bg}"/><path d="${LP}" fill-rule="evenodd" style="fill:${fg}"/></svg>`;
+async function saveFile(name,data){let dl=null;try{dl=window.claude&&window.claude.use?await window.claude.use('downloads'):null}catch(e){}
+ if(dl){try{await dl.save({filename:name,data});return true}catch(e){if(!e||e.code!='declined')toast('Download nahi ho paya: '+((e&&(e.message||e.code))||''));return false}}
+ if(!window.claude){const a=document.createElement('a');a.href=URL.createObjectURL(data instanceof Blob?data:new Blob([data]));a.download=name;document.body.appendChild(a);a.click();a.remove();return true}
+ toast('Download is view me available nahi hai. Page ko claude.ai me kholein.');return false}
+function printDoc(html,name){
+ if(window.claude){saveFile(name,html).then(ok=>ok&&toast('File save ho gayi. Use browser me kholkar Print (Ctrl+P) karein.'));return}
+ const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';f.srcdoc=html;
+ f.onload=()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){toast('Print nahi ho paya. Download dabakar file kholein aur wahan se Print karein.')}setTimeout(()=>f.remove(),60000)};document.body.appendChild(f)}
+function docWrap(t,b){return`<!DOCTYPE html><html><head><meta charset='utf-8'><title>${esc(t)}</title><style>@page{size:A4;margin:12mm}body{font:12px/1.4 Arial,sans-serif;color:#000;background:#fff;margin:0;padding:14px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #444;padding:4px 6px;text-align:left;white-space:nowrap}th{background:#1f4fa3;color:#fff}td.r{text-align:right}.bad{color:#c0392b;font-weight:bold}.kp{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}.kp div{background:#e8eefb;border-radius:6px;padding:6px}.kp b{display:block;font-size:13px}.kp span{font-size:10px;color:#555}h2{font-size:14px;margin:14px 0 6px;color:#1f4fa3}h1{text-align:center;font-size:18px;margin:2px 0 8px}</style></head><body><div style='text-align:center'>${logo('#1f4fa3','#fff',56)}</div><div style='text-align:center;font-size:22px;font-weight:bold;color:#1f4fa3'>श्री Enterprises</div>${b}</body></html>`}
+async function dlf(){saveFile('Loan_Application_'+fl+'.html',await formHtml(fl))}
+async function prf(){printDoc(await formHtml(fl),'Loan_Application_'+fl+'.html')}
+function prs(){if(!window._sd){toast('Is client ka koi loan nahi hai');return}printDoc(window._sd,'Repayment_Schedule_'+sc+'.html')}
+function dls(){if(!window._sd){toast('Is client ka koi loan nahi hai');return}saveFile('Repayment_Schedule_'+sc+'.html',window._sd)}
+const crcT=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc=u=>{let c=-1;for(let i=0;i<u.length;i++)c=crcT[(c^u[i])&255]^(c>>>8);return(c^-1)>>>0};
+function zip(files){const enc=new TextEncoder(),parts=[],cd=[],u16=n=>[n&255,n>>8&255],u32=n=>[n&255,n>>8&255,n>>16&255,n>>>24&255];let off=0;
+ for(const[name,txt]of files){const nb=enc.encode(name),d=enc.encode(txt),c=crc(d);
+  const lh=new Uint8Array([0x50,0x4b,3,4,20,0,0,0,0,0,0,0,0,0,...u32(c),...u32(d.length),...u32(d.length),...u16(nb.length),0,0]);
+  parts.push(lh,nb,d);
+  cd.push(new Uint8Array([0x50,0x4b,1,2,20,0,20,0,0,0,0,0,0,0,0,0,...u32(c),...u32(d.length),...u32(d.length),...u16(nb.length),0,0,0,0,0,0,0,0,0,0,0,0,...u32(off)]),nb);
+  off+=lh.length+nb.length+d.length}
+ const cds=cd.reduce((s,x)=>s+x.length,0);
+ parts.push(...cd,new Uint8Array([0x50,0x4b,5,6,0,0,0,0,...u16(files.length),...u16(files.length),...u32(cds),...u32(off),0,0]));
+ return new Blob(parts,{type:'application/zip'})}
+const xe=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const xc=i=>{let s='';i++;while(i>0){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26)}return s};
+function xlsx(sheet,rows){
+ const sd=rows.map((r,ri)=>`<row r="${ri+1}">${r.map((v,ci)=>typeof v=='number'?`<c r="${xc(ci)}${ri+1}"><v>${v}</v></c>`:`<c r="${xc(ci)}${ri+1}" t="inlineStr"><is><t>${xe(v)}</t></is></c>`).join('')}</row>`).join('');
+ const X='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',R='http://schemas.openxmlformats.org/officeDocument/2006/relationships',PK='http://schemas.openxmlformats.org/package/2006/relationships';
+ return zip([['[Content_Types].xml',X+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'],
+ ['_rels/.rels',X+`<Relationships xmlns="${PK}"><Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+ ['xl/workbook.xml',X+`<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${R}"><sheets><sheet name="${xe(sheet)}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+ ['xl/_rels/workbook.xml.rels',X+`<Relationships xmlns="${PK}"><Relationship Id="rId1" Type="${R}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`],
+ ['xl/worksheets/sheet1.xml',X+`<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="18" width="16" customWidth="1"/></cols><sheetData>${sd}</sheetData></worksheet>`]])}
+let sc='';
+function sched(){
+ if(!D.clients.length)return'<h2>Repayment Schedule</h2><div class="card">Pehle client aur loan add karein.</div>';
+ if(!D.clients.some(c=>c.id==sc))sc=D.clients[0].id;
+ window._sd=null;
+ const c=D.clients.find(x=>x.id==sc),dm=s=>s.split('-').reverse().join('-');
+ let h=`<h2>Client Repayment Schedule (as on ${dm(asOn)})</h2><div class="card"><label>Client<select onchange="sc=this.value;render()">${D.clients.map(x=>`<option value="${esc(x.id)}" ${x.id==sc?'selected':''}>${esc(x.id+' - '+x.name)}</option>`).join('')}</select></label> <button class="p" onclick="prs()">🖨 Print</button> <button onclick="dls()">Download (.html)</button><p style="margin:8px 0 0">Husband: <b>${esc(c.husband||'-')}</b> · Group: <b>${esc(c.group)}</b> · Branch: <b>${esc(c.branch)}</b> · Mobile: <b>${esc(c.mobile||'-')}${c.alt?' / '+esc(c.alt):''}</b><br>Address: <b>${esc(c.address||'-')}</b>, ${esc(c.village)}</p></div>`;
+ const L=D.loans.filter(l=>l.client==sc);let b='';
+ const info=`<b>${esc(c.name)}</b> (${esc(c.id)}) · Husband: ${esc(c.husband||'-')} · Group: ${esc(c.group)} · Branch: ${esc(c.branch)} · Mobile: ${esc(c.mobile||'-')}${c.alt?' / '+esc(c.alt):''}<br>Address: ${esc(c.address||'-')}, ${esc(c.village)}`;
+ if(!L.length)return h+'<div class="card">Is client ka koi loan nahi hai.</div>';
+ for(const l of L){const o=calc(l);if(!o.emi)continue;
+  const n=+l.n,i=o.p.rate/100/o.ppy,flat=o.p.method=='Flat';let bal=+l.amount;const R=[],T=[0,0,0,0,0];
+  for(let k=1;k<=n;k++){
+   const it=flat?(o.total-l.amount)/n:bal*i,pr=flat?l.amount/n:Math.min(bal,o.emi-it),paid=Math.min(o.emi,Math.max(0,o.colb-o.emi*(k-1))),d=dueOn(l,k,o.ppy);
+   const st0=paid>=o.emi?'Paid':d<=asOn?(paid>0?'Partly Paid - Overdue':'Overdue'):paid>0?'Partly Paid':'Upcoming',st=(o.cl&&d>o.cl.date&&paid<o.emi)?'Cancelled ('+o.cl.type+')':st0;
+   R.push([k,dm(d),num(o.emi),num(it),num(pr),num(paid),num(o.emi-paid),st]);bal-=pr;
+   [o.emi,it,pr,paid,o.emi-paid].forEach((v,j)=>T[j]+=v)}
+  R.push(['Total','',num(T[0]),num(T[1]),num(T[2]),num(T[3]),num(T[4]),'']);
+  const K=[['Loan Amount ₹',num(l.amount)],['Interest',o.p.rate+'% '+o.p.method],['EMI ₹',num(o.emi)+' × '+n+' ('+o.p.freq+')'],['First EMI',dm(l.first||dueOn(l,1,o.ppy))],['Total Repayable ₹',num(o.total)],['Collected ₹',num(o.col)],['Outstanding ₹',num(o.out)],['Overdue ₹',num(o.over)],...(o.cl?[['Closure',o.cl.type+' - '+dm(o.cl.date)]]:[])];
+  const sec=`<h2>${esc(l.id)} · ${esc(o.p.name)}</h2><div class="kp" style="margin-bottom:8px">${K.map(([a,b])=>`<div><span>${a}</span><b style="font-size:15px">${b}</b></div>`).join('')}</div><div class="w">${tbl(['Inst. No','Due Date','Installment','Interest','Principal','Paid','Pending','Status'],R)}</div>`;h+=sec;b+=sec}
+ window._sd=b?docWrap('Repayment Schedule - '+c.id,'<h1>Repayment Schedule (as on '+dm(asOn)+')</h1><p>'+info+'</p>'+b):null;
+ return h}
+const UK='mfi_users_v1',RK='mfi_rk_v1',ID_RE=/^[A-Za-z0-9_.-]{3,20}$/;
+let users=[],U=null,am='login',fails=0,lockUntil=0;
+try{users=JSON.parse(localStorage.getItem(UK))||[]}catch(e){}
+try{U=users.find(u=>u.id==sessionStorage.getItem('mfi_sess'))||null}catch(e){}
+const usave=()=>{try{localStorage.setItem(UK,JSON.stringify(users))}catch(e){}};
+const b64=b=>btoa(String.fromCharCode(...new Uint8Array(b))),unb=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0)),rnd=n=>crypto.getRandomValues(new Uint8Array(n));
+async function hp(pw,salt){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);return b64(await crypto.subtle.deriveBits({name:'PBKDF2',salt:unb(salt),iterations:100000,hash:'SHA-256'},k,256))}
+async function mkUser(id,pw,role){const salt=b64(rnd(16));return{id,role,salt,hash:await hp(pw,salt)}}
+const lm=t=>{const e=$('#lm');if(e)e.textContent=t};
+const tabOk=t=>U.role=='admin'||!['Backup','Users','Cashbook','Profit & Loss'].includes(t);
+function sess(u){U=u;try{sessionStorage.setItem('mfi_sess',u.id)}catch(e){}tab='Dashboard';ed=null;dc=null;render()}
+function logout(){try{sessionStorage.removeItem('mfi_sess')}catch(e){}U=null;am='login';ed=null;dc=null;render()}
+function authScreen(){
+ $('#nav').innerHTML='';$('#usr').innerHTML='';$('#ason').parentNode.style.display='none';
+ const m=!users.length?'setup':am,fn={setup:'mkAdmin()',login:'doLogin()',recov:'doRecover()'}[m];
+ const T={setup:'Create Admin Account',login:'Login',recov:'Password Reset'}[m];
+ const S={setup:'Pehli baar setup: admin ka User ID aur Password banayein.',login:'Apna User ID aur Password daalein.',recov:'Admin ka User ID, Recovery Key aur naya password daalein.'}[m];
+ $('#v').innerHTML=`<div class="card" style="max-width:380px;margin:8vh auto 0"><div style="text-align:center;margin-bottom:12px">${logo('var(--ac)','var(--bg)',72)}<div style="font-weight:bold;color:var(--ac);font-size:18px;margin-top:6px">श्री Enterprises</div></div><h2 style="margin-top:0">${T}</h2><p style="color:var(--mu);margin:0 0 10px">${S}</p>
+ <div class="form" style="grid-template-columns:1fr" onkeydown="if(event.key=='Enter')${fn}"><label>User ID<input id="lu" autocomplete="username"></label>
+ ${m=='recov'?'<label>Recovery Key<input id="lk" autocomplete="off"></label>':''}
+ <label>${m=='recov'?'Naya Password':'Password'}<input id="lp" type="password" autocomplete="${m=='login'?'current-password':'new-password'}"></label>
+ ${m=='setup'?'<label>Confirm Password<input id="lp2" type="password" autocomplete="new-password"></label>':''}</div>
+ <div id="lm" class="bad" style="margin-bottom:8px"></div><button class="p" onclick="${fn}">${m=='setup'?'Create Admin':m=='login'?'Login':'Reset Password'}</button>
+ ${m=='login'?' <button onclick="am=\'recov\';render()">Password bhool gaye?</button>':m=='recov'?' <button onclick="am=\'login\';render()">Back</button>':''}</div>`}
+async function mkAdmin(){const id=$('#lu').value.trim(),p=$('#lp').value;
+ if(!ID_RE.test(id))return lm('User ID 3-20 akshar: A-Z, 0-9, _ . - hi allowed');
+ if(p.length<6)return lm('Password kam se kam 6 akshar ka ho');
+ if(p!==$('#lp2').value)return lm('Dono password match nahi karte');
+ try{const u=await mkUser(id,p,'admin'),rk=Array.from(rnd(12),b=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b%32]).join('').replace(/(.{4})(?=.)/g,'$1-'),s=b64(rnd(16));
+  users=[u];usave();localStorage.setItem(RK,JSON.stringify({salt:s,hash:await hp(rk.replace(/-/g,''),s)}));
+  sess(u);dlg('Recovery Key (sirf ek baar dikhegi)\n\n'+rk+'\n\nIse kagaz par likhkar surakshit rakhein. Admin password bhool jane par yahi key kaam aayegi.','<button class="p" onclick="hide()">Maine likh liya</button>')
+ }catch(e){lm('Is browser me secure login available nahi hai')}}
+async function doLogin(){
+ if(Date.now()<lockUntil)return lm('Bahut galat koshishein. '+Math.ceil((lockUntil-Date.now())/1000)+' second baad try karein.');
+ const id=$('#lu').value.trim().toLowerCase(),u=users.find(x=>x.id.toLowerCase()==id);
+ try{if(u&&await hp($('#lp').value,u.salt)==u.hash){fails=0;return sess(u)}}catch(e){return lm('Is browser me secure login available nahi hai')}
+ if(++fails>=5){fails=0;lockUntil=Date.now()+30000}lm('User ID ya Password galat hai')}
+async function doRecover(){
+ const id=$('#lu').value.trim().toLowerCase(),u=users.find(x=>x.id.toLowerCase()==id&&x.role=='admin'),k=$('#lk').value.toUpperCase().replace(/[^A-Z0-9]/g,''),p=$('#lp').value;
+ if(p.length<6)return lm('Naya password kam se kam 6 akshar ka ho');
+ let r=null;try{r=JSON.parse(localStorage.getItem(RK))}catch(e){}
+ try{if(u&&r&&await hp(k,r.salt)==r.hash){const n=await mkUser(u.id,p,'admin');u.salt=n.salt;u.hash=n.hash;usave();am='login';render();toast('Password badal gaya. Ab naye password se login karein.');return}}catch(e){}
+ lm('User ID ya Recovery Key galat hai')}
+function pwDlg(id){dlg('Naya password: '+id,`<input id="mp" type="password" autocomplete="new-password" placeholder="kam se kam 6 akshar"> <button class="p" onclick="savePw('${id}')">Save</button> <button onclick="hide()">Cancel</button>`)}
+async function savePw(id){const p=$('#mp').value;if(p.length<6){toast('Password kam se kam 6 akshar ka ho');return}
+ const u=users.find(x=>x.id==id);if(!u)return;try{const n=await mkUser(id,p,u.role);u.salt=n.salt;u.hash=n.hash;usave();toast('Password badal diya gaya')}catch(e){toast('Password save nahi hua')}}
+async function addUser(){const id=$('#nu').value.trim(),p=$('#np').value,r=$('#nr').value;
+ if(!ID_RE.test(id)){toast('User ID 3-20 akshar: A-Z, 0-9, _ . - hi allowed');return}
+ if(users.some(u=>u.id.toLowerCase()==id.toLowerCase())){toast('Ye User ID pehle se hai');return}
+ if(p.length<6){toast('Password kam se kam 6 akshar ka ho');return}
+ try{users.push(await mkUser(id,p,r));usave();render()}catch(e){toast('User save nahi hua')}}
+function delUser(id){const u=users.find(x=>x.id==id);if(!u)return;
+ if(u.role=='admin'&&users.filter(x=>x.role=='admin').length<2){toast('Aakhri admin delete nahi ho sakta');return}
+ ask(id+' ko delete karein?',()=>{users=users.filter(x=>x.id!=id);usave();render()})}
+function usersv(){if(!U||U.role!='admin')return'';
+ return`<h2>Users</h2><div class="card"><div class="form"><label>User ID<input id="nu" autocomplete="off"></label><label>Password<input id="np" type="password" autocomplete="new-password"></label><label>Role<select id="nr"><option>staff</option><option>admin</option></select></label></div><button class="p" onclick="addUser()">+ Add User</button><p><small>Staff ko Backup aur Users tabs nahi dikhte. Password kam se kam 6 akshar.</small></p></div><div class="w">${tbl(['User ID','Role',''],users.map(u=>[u.id,u.role,`<button onclick="pwDlg('${u.id}')">Reset Password</button> ${u.id==U.id?'':`<button onclick="delUser('${u.id}')">Delete</button>`}`]),[2])}</div>`}
+let cf=null,ct=null,pb='cash';
+const dm2=s=>s.split('-').reverse().join('-');
+function elAt(l,o,d){const F=dueOn(l,1,o.ppy),n=+l.n;if(d<F)return 0;let e;if(o.ppy==12){const A=P(F),B=P(d);e=(B.getUTCFullYear()-A.getUTCFullYear())*12+B.getUTCMonth()-A.getUTCMonth()-(B.getUTCDate()<A.getUTCDate()?1:0)+1}else e=Math.floor(days(d,F)/Math.round(365/o.ppy))+1;return Math.min(n,e)}
+function cbRows(){const r=[];
+ D.collections.forEach(c=>{const l=D.loans.find(x=>x.id==c.loan),cl=l&&D.clients.find(x=>x.id==l.client);r.push({d:c.date,p:'Loan repayment - '+(cl?cl.name:'?'),ref:c.loan+' / '+c.id,m:c.mode=='Cash'?'Cash':'Bank',rc:+c.amount,py:0})});
+ D.loans.forEach(l=>{const o=calc(l);if(!o.emi)return;r.push({d:l.date,p:'Loan disbursed - '+o.name+' (net of fee & insurance)',ref:l.id,m:(l.dmode||'Cash')=='Cash'?'Cash':'Bank',rc:0,py:+l.amount-o.fee-o.ins})});
+ (D.closures||[]).forEach(c=>{const l=D.loans.find(x=>x.id==c.loan),cl=l&&D.clients.find(x=>x.id==l.client);if(+c.rcv>0)r.push({d:c.date,p:(c.type=='Death'?'Insurance claim received (Death) - ':'Foreclosure settlement - ')+(cl?cl.name:'?'),ref:c.loan+' / '+c.id,m:c.mode=='Cash'?'Cash':'Bank',rc:+c.rcv,py:0})});
+ (D.entries||[]).forEach(e=>r.push({d:e.date,p:e.head+(e.desc?' - '+e.desc:''),ref:e.id,m:e.mode=='Cash'?'Cash':'Bank',rc:e.type=='Receipt'?+e.amount:0,py:e.type=='Payment'?+e.amount:0}));
+ return r.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0)}
+function rng(extra){if(!cf)cf=asOn.slice(0,8)+'01';if(!ct)ct=asOn;
+ return`<div class="card"><div class="form"><label>From<input type="date" value="${cf}" onchange="cf=this.value||cf;render()"></label><label>To<input type="date" value="${ct}" onchange="ct=this.value||ct;render()"></label>${extra||''}</div></div>`}
+function cashbook(){
+ const R=rng(),all=cbRows(),op={Cash:0,Bank:0},t={Cash:[0,0],Bank:[0,0]};
+ all.forEach(r=>{if(r.d<cf)op[r.m]+=r.rc-r.py;else if(r.d<=ct){t[r.m][0]+=r.rc;t[r.m][1]+=r.py}});
+ const cl=m=>op[m]+t[m][0]-t[m][1],rs=all.filter(r=>r.d>=cf&&r.d<=ct);
+ let bal=op.Cash+op.Bank;const T=[['','Opening Balance','','','','',num(bal)]],X=[['Date','Particulars','Ref','Mode','Receipt','Payment','Balance'],['','Opening Balance','','','','',bal]];
+ rs.forEach(r=>{bal+=r.rc-r.py;T.push([dm2(r.d),r.p,r.ref,r.m,r.rc?num(r.rc):'',r.py?num(r.py):'',num(bal)]);X.push([dm2(r.d),r.p,r.ref,r.m,r.rc,r.py,bal])});
+ const tr=t.Cash[0]+t.Bank[0],tp=t.Cash[1]+t.Bank[1];T.push(['','Total','','',num(tr),num(tp),num(bal)]);X.push(['','Total','','',tr,tp,bal]);
+ const sm=[['Opening Balance',op.Cash,op.Bank],['Total Receipts',t.Cash[0],t.Bank[0]],['Total Payments',t.Cash[1],t.Bank[1]],['Closing Balance',cl('Cash'),cl('Bank')]].map(r=>[r[0],num(r[1]),num(r[2]),num(r[1]+r[2])]);
+ const S1=tbl(['Summary','Cash','Bank / UPI','Total'],sm),S2=tbl(X[0],T);
+ window._cb=docWrap('Cashbook','<h1>Cashbook ('+dm2(cf)+' to '+dm2(ct)+')</h1>'+S1+'<h2>Ledger</h2>'+S2);window._cbx=X;
+ return`<h2>Cashbook</h2>${R}<div class="card"><button class="p" onclick="printDoc(window._cb,'Cashbook.html')">\u{1F5A8} Print</button> <button class="p" onclick="saveFile('Cashbook_'+cf+'_'+ct+'.xlsx',xlsx('Cashbook',window._cbx))">Download Excel (.xlsx)</button> <small>Loan repayment aur loan disbursement apne aap aate hain. Kharcha, capital aur baaki entries neeche se daalein.</small></div><div class="w">${S1}</div><h2>Ledger</h2><div class="w">${S2}</div>${ent('entries')}`}
+function pnl(){
+ const R=rng(`<label>Basis<select onchange="pb=this.value;render()"><option value="cash" ${pb=='cash'?'selected':''}>Cash basis (collected)</option><option value="accrual" ${pb=='accrual'?'selected':''}>Accrual basis (earned)</option></select></label>`);
+ let ii=0,fee=0,ins=0;
+ D.loans.map(calc).filter(o=>o.emi).forEach(o=>{const l=o.l,n=+l.n,tot=o.total-l.amount;
+  if(l.date>=cf&&l.date<=ct){fee+=o.fee;ins+=o.ins}
+  if(pb=='cash')D.collections.forEach(c=>{if(c.loan==l.id&&c.date>=cf&&c.date<=ct)ii+=c.amount*tot/o.total});
+  else{const cz=(D.closures||[]).find(x=>x.loan==l.id),e2=cz&&cz.date<ct?cz.date:ct,pd=addD(cf,-1),e1=cz&&cz.date<pd?cz.date:pd;ii+=(elAt(l,o,e2)-elAt(l,o,e1))*tot/n}});
+ let ci=0,cc=0,loss=0;(D.closures||[]).filter(c=>c.date>=cf&&c.date<=ct).forEach(c=>{ci+=+c.intInc;cc+=+c.chgInc;loss+=+c.loss});if(pb=='cash')ii+=ci;
+ const inr=(D.entries||[]).filter(e=>e.date>=cf&&e.date<=ct),sm=(t,hd)=>inr.filter(e=>e.type==t&&e.head==hd).reduce((s,e)=>s+ +e.amount,0);
+ const oth=sm('Receipt','Other Income'),ex=[...EXP.map(hd=>[hd,sm('Payment',hd)]),['Loan loss on closure (written off)',loss]].filter(x=>x[1]>0),te=ex.reduce((s,x)=>s+x[1],0),ti=ii+fee+oth+cc,np=ti-te,rem=sm('Payment','Insurance Premium Paid');
+ const rw=[['h','INCOME'],['r','Interest income ('+(pb=='cash'?'collected':'earned')+')',ii],['r','Processing fee income',fee],['r','Closure charges & other income',cc],['r','Other income',oth],['t','Total Income',ti],['h','EXPENSES'],...ex.map(x=>['r',x[0],x[1]]),['t','Total Expenses',te],['t',np>=0?'NET PROFIT':'NET LOSS',Math.abs(np),np<0?'color:#c0392b':'color:#1e8449'],['h','MEMO (profit me shamil nahi)'],['r','Insurance collected from borrowers',ins],['r','Insurance premium paid to insurer',rem],['r','Insurance payable to insurer (balance)',ins-rem]];
+ const tb=`<table>${rw.map(x=>x[0]=='h'?`<tr><th colspan="2">${x[1]}</th></tr>`:`<tr${x[0]=='t'?` style="font-weight:bold;background:rgba(31,79,163,.12);${x[3]||''}"`:''}><td>${esc(x[1])}</td><td style="text-align:right;width:180px">${num(x[2])}</td></tr>`).join('')}</table>`;
+ window._pl=docWrap('Profit and Loss','<h1>Profit &amp; Loss ('+dm2(cf)+' to '+dm2(ct)+')</h1>'+tb);
+ window._plx=[['Particulars','Amount'],...rw.map(x=>x[0]=='h'?[x[1],'']:[x[1],Math.round(x[2])])];
+ const mg=ti?pct(np/ti):'0.0%';
+ return`<h2>Profit &amp; Loss</h2>${R}<div class="card"><button class="p" onclick="printDoc(window._pl,'Profit_Loss.html')">\u{1F5A8} Print</button> <button class="p" onclick="saveFile('Profit_Loss_'+cf+'_'+ct+'.xlsx',xlsx('Profit and Loss',window._plx))">Download Excel (.xlsx)</button> <small>Net ${np>=0?'profit':'loss'} margin: ${mg}</small></div><div class="w">${tb}</div>
+ <div class="card" style="margin-top:12px"><small>Cash basis: har collection me se loan ke total interest ka hissa (interest &divide; total repayable) interest income maana jata hai. Accrual basis: chune hue period me jitni installments due huin, unka interest. Processing fee disbursement ki date par income maani gayi hai. Insurance income nahi hai (insurer ko dena hota hai). Kharche Cashbook ke Manual Entries se aate hain.</small></div>`}
+function clCalc(l,d,chg){const sv=asOn;asOn=d;const o=calc(l);asOn=sv;
+ const ipi=(o.total-l.amount)/l.n,earned=elAt(l,o,d)*ipi,paidInt=o.col*(o.total-l.amount)/o.total,due=Math.max(0,Math.round(earned-paidInt)),pos=o.pos,charge=Math.round(pos*chg/100);
+ return{o,pos,due,charge,settle:pos+due+charge}}
+function clPrev(){const le=$('#c_loan');if(!le)return;const l=D.loans.find(x=>x.id==le.value);if(!l)return;
+ const dth=$('#c_type').value=='Death',d=$('#c_date').value||asOn;
+ $('#c_whol').style.display=dth?'':'none';$('#c_chgl').style.display=dth?'none':'';
+ const r=clCalc(l,d,dth?0:(+$('#c_chg').value||0));
+ $('#c_pv').innerHTML=[['Outstanding Principal',num(r.pos)],['Unpaid Interest (accrued)',num(r.due)],...(dth?[]:[['Foreclosure Charge',num(r.charge)]]),[dth?'Expected Insurance Claim':'Settlement Amount',num(r.settle)]].map(([a,b])=>`<div><span>${a}</span><b style="font-size:15px">${b}</b></div>`).join('');
+ $('#c_rcv').value=r.settle}
+function addCl(){const l=D.loans.find(x=>x.id==$('#c_loan').value);if(!l)return;
+ const ty=$('#c_type').value,d=$('#c_date').value,dth=ty=='Death',rv=$('#c_rcv').value,rcv=+rv;
+ if(!d||d<l.date){toast('Closure date sahi daalein (loan ki date ke baad ki)');return}
+ if(rv===''||!(rcv>=0)){toast('Amount Received daalein (0 bhi chalega)');return}
+ const r=clCalc(l,d,dth?0:(+$('#c_chg').value||0)),pr=Math.min(rcv,r.pos),rem=rcv-pr,ii=Math.min(r.due,rem),mode=$('#c_mode').value,note=$('#c_note').value.trim(),who=dth?$('#c_who').value:'';
+ ask(l.id+' ko '+ty+' se close karein? Baad mein "Reopen" se wapas khol sakte hain.',()=>{
+  const id='X'+String(Math.max(0,...(D.closures||[]).map(x=>+x.id.slice(1)||0))+1).padStart(4,'0');
+  D.closures.push({id,loan:l.id,type:ty,date:d,who,pos:r.pos,due:r.due,charge:r.charge,settle:r.settle,rcv,mode,note,loss:r.pos-pr,intInc:ii,chgInc:rem-ii});save();render()})}
+function reopen(id){ask(id+' ko Reopen karein? Loan phir se active ho jayega.',()=>{D.closures=D.closures.filter(c=>c.id!=id);save();render()})}
+function closure(){
+ const act=D.loans.filter(l=>!(D.closures||[]).some(c=>c.loan==l.id)&&calc(l).emi);
+ const opt=act.map(l=>`<option value="${esc(l.id)}">${esc(l.id+' - '+((D.clients.find(c=>c.id==l.client)||{}).name||'?'))}</option>`).join('');
+ const form=act.length?`<div class="form"><label>Loan<select id="c_loan" onchange="clPrev()">${opt}</select></label><label>Closure Type<select id="c_type" onchange="clPrev()"><option>Foreclosure</option><option>Death</option></select></label><label>Closure Date<input type="date" id="c_date" value="${asOn}" onchange="clPrev()"></label><label id="c_whol">Death of<select id="c_who"><option>Client</option><option>Husband</option></select></label><label id="c_chgl">Foreclosure Charge %<input type="number" step="any" id="c_chg" value="0" oninput="clPrev()"></label></div><div id="c_pv" class="kp" style="margin-bottom:10px"></div><div class="form"><label>Amount Received (Rs)<input type="number" step="any" id="c_rcv"></label><label>Mode<select id="c_mode"><option>Cash</option><option>Bank Transfer</option><option>UPI</option></select></label><label>Note<input id="c_note"></label></div><button class="p" onclick="addCl()">Close Loan</button> <small>Foreclosure: customer se settlement. Death: insurance claim ka amount. Jo principal recover nahi hua wo Profit &amp; Loss mein loss likha jata hai. Amount Received badal sakte hain.</small>`:'Koi active loan nahi hai.';
+ const T=(D.closures||[]).map(c=>{const l=D.loans.find(x=>x.id==c.loan),cl=l&&D.clients.find(x=>x.id==l.client);return[c.id,c.loan,cl?cl.name:'?',c.type+(c.who?' ('+c.who+')':''),dm2(c.date),num(c.pos),num(c.due),num(c.charge),num(c.settle),num(c.rcv),num(c.loss),c.mode,c.note||'',`<button onclick="reopen('${c.id}')">Reopen</button>`]});
+ return`<h2>Loan Closure (Foreclosure / Death)</h2><div class="card">${form}</div><h2>Closed Loans</h2><div class="w">${tbl(['ID','Loan','Client','Type','Date','Outstanding Principal','Unpaid Interest','Charge','Settlement Due','Received','Loss Written Off','Mode','Note',''],T,[13])}</div>`}
+const V={Dashboard:dash,Clients:()=>ent('clients'),Loans:()=>ent('loans'),Collections:()=>ent('collections'),Closure:closure,Products:()=>ent('products'),Portfolio:port,Cashbook:cashbook,'Profit & Loss':pnl,Schedule:sched,Application:appv,Backup:bak,Users:usersv};
+function render(){if(!U)return authScreen();$('#ason').parentNode.style.display='';$('#ason').value=asOn;
+ $('#usr').innerHTML=`<span>\u{1F464} ${esc(U.id)} (${U.role}) <button onclick="pwDlg('${U.id}')">Password</button> <button onclick="logout()">Logout</button></span>`;
+ if(!tabOk(tab))tab='Dashboard';
+ $('#nav').innerHTML=Object.keys(V).filter(tabOk).map(t=>`<button class="${t==tab?'on':''}" onclick="tab='${t}';ed=null;render()">${t}</button>`).join('');
+ $('#v').innerHTML=V[tab]();if(tab=='Loans')sync();if(tab=='Clients'&&dc)docs();if(tab=='Closure')clPrev()}
+$('#hl').innerHTML=logo('var(--ac)','var(--bg)',40);
+render();
+</script></body></html>
