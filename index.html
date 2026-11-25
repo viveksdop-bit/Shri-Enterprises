@@ -27,7 +27,7 @@ td.r{text-align:right}.bad{color:var(--bad);font-weight:bold}.ok{color:var(--ok)
 .bar{height:10px;background:var(--ac);border-radius:4px;min-width:2px}
 textarea{width:100%;height:160px;font-family:monospace;font-size:12px}
 </style></head><body>
-<header><h1><span class="lg" id="hl"></span>श्री Enterprises<small>Loan Manager</small></h1>
+<header><h1><span class="lg" id="hl"></span>श्री Enterprises<small>Loan Manager</small> <span id="syncBadge" style="font-size:11px;background:var(--ab);color:var(--ac);padding:3px 8px;border-radius:12px;margin-left:6px;font-weight:normal">Offline App</span></h1>
 <label style="flex-direction:row;align-items:center;gap:6px">As-On Date <input type="date" id="ason" onchange="asOn=this.value||today();render()"></label><span id="usr"></span></header>
 <nav id="nav"></nav><main id="v"></main><div id="ov"></div>
 <footer style="text-align:center;color:var(--mu);font-size:12px;padding:16px">&copy; श्री Enterprises</footer>
@@ -46,7 +46,91 @@ let asOn=today(),tab='Dashboard',D=null;
 const defProducts=()=>[{id:'P01',name:'Weekly - Flat 30.5%',rate:30.5,method:'Flat',freq:'Weekly',fee:4,ins:4,terms:'13'},{id:'P02',name:'Monthly - Flat 30.5%',rate:30.5,method:'Flat',freq:'Monthly',fee:4,ins:4,terms:'12,18,24'}];
 try{D=JSON.parse(localStorage.getItem(LS))}catch(e){}
 if(!D)D={products:defProducts(),clients:[],loans:[],collections:[]};
-function save(){try{localStorage.setItem(LS,JSON.stringify(D))}catch(e){}}
+
+// ---- Auto-Sync to Laptop Folder (File System Access API) ----
+let syncDirHandle = null;
+async function getSyncDir() {
+  if (syncDirHandle) return syncDirHandle;
+  try {
+    const h = await fget('__sync_dir_handle__');
+    if (h) { syncDirHandle = h; return h; }
+  } catch (e) {}
+  return null;
+}
+async function pickSyncFolder() {
+  if (window.showDirectoryPicker) {
+    try {
+      const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+      syncDirHandle = dir;
+      await fput('__sync_dir_handle__', dir);
+      await writeAutoSyncFile();
+      toast('Folder connect ho gaya: "' + dir.name + '"! Ab har entry ke baad data automatic is folder mein save hoga.');
+      render();
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      // Fallback to showSaveFilePicker if directory picker is restricted on file:// or system root
+      if (window.showSaveFilePicker) {
+        try {
+          const fh = await window.showSaveFilePicker({
+            suggestedName: 'Shri_Enterprises_AutoBackup.json',
+            types: [{ description: 'JSON Backup', accept: { 'application/json': ['.json'] } }]
+          });
+          syncFileHandle = fh;
+          await fput('__sync_file_handle__', fh);
+          await writeAutoSyncFile();
+          toast('Auto-Backup file connect ho gayi: "' + fh.name + '"! Ab har entry ke baad data automatic is file mein save hoga.');
+          render();
+          return;
+        } catch (e2) {
+          if (e2 && e2.name !== 'AbortError') toast('Folder/File select nahi ho paya: ' + (e2.message || e.message));
+          return;
+        }
+      }
+      toast('Folder select nahi ho paya: ' + e.message + '\n\nTip: Seedha D:\\ drive ke bajay D:\\ShriEnterprises_Data jaisa sub-folder chunein.');
+      return;
+    }
+  }
+  toast('Is browser mein direct folder sync block hai. Aap Download Backup (.json) button use karein.');
+}
+let syncFileHandle = null;
+async function getSyncFile() {
+  if (syncFileHandle) return syncFileHandle;
+  try {
+    const h = await fget('__sync_file_handle__');
+    if (h) { syncFileHandle = h; return h; }
+  } catch (e) {}
+  return null;
+}
+async function writeAutoSyncFile() {
+  try {
+    const payload = JSON.stringify({ data: D, users: users }, null, 2);
+    const dir = await getSyncDir();
+    if (dir && (await dir.queryPermission({ mode: 'readwrite' })) === 'granted') {
+      const fh = await dir.getFileHandle('Shri_Enterprises_AutoBackup.json', { create: true });
+      const w = await fh.createWritable();
+      await w.write(payload);
+      await w.close();
+      const el = $('#syncBadge');
+      if (el) el.textContent = 'Auto-Saved: ' + new Date().toLocaleTimeString();
+      return true;
+    }
+    const fh2 = await getSyncFile();
+    if (fh2 && (await fh2.queryPermission({ mode: 'readwrite' })) === 'granted') {
+      const w = await fh2.createWritable();
+      await w.write(payload);
+      await w.close();
+      const el = $('#syncBadge');
+      if (el) el.textContent = 'Auto-Saved: ' + new Date().toLocaleTimeString();
+      return true;
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+function save(){try{localStorage.setItem(LS,JSON.stringify(D));writeAutoSyncFile()}catch(e){}}
 D.products.forEach(p=>{if(p.fee===1&&p.ins===0.5){p.fee=4;p.ins=4}});D.entries=D.entries||[];D.closures=D.closures||[];migStaff();save();
 // ---- calculation engine (same logic as the Excel tool)
 function calc(l){
@@ -157,9 +241,13 @@ function port(){const{hd,T}=pdata();
  return`<h2>Loan Portfolio (as on ${asOn})</h2><div class="card"><button class="p" onclick="pxls()">Download Excel (.xlsx)</button> <button class="p" onclick="pcsv()">Download CSV</button></div><div class="w">${tbl(hd,T.map(r=>r.map((v,i)=>i==14||i==15||(i>=20&&i<=26)?num(v):v)))}</div>`}
 function pcsv(){const{hd,T}=pdata();saveFile('Portfolio_'+asOn+'.csv','\ufeff'+[hd,...T].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n'))}
 function pxls(){const{hd,T}=pdata();saveFile('Portfolio_'+asOn+'.xlsx',xlsx('Portfolio',[hd,...T]))}
-function bak(){return`<h2>Backup &amp; Data</h2><div class="card"><p>Data sirf is browser me save hota hai. Backup ke liye JSON copy karke kahin save karein; wapas laane ke liye paste karke Import dabayein.</p>
-<button onclick="$('#bk').value=JSON.stringify(D)">Export JSON</button> <button class="p" onclick="imp()">Import JSON</button> <button onclick="reset()">Sab data hatayein</button><textarea id="bk"></textarea></div>`}
-function imp(){try{const x=JSON.parse($('#bk').value);if(!x.clients||!x.loans||!x.collections||!x.products)throw 0;D=x;D.entries=D.entries||[];D.closures=D.closures||[];migStaff();save();render()}catch(e){alert('Sahi JSON backup paste karein')}}
+function bak(){return`<h2>Backup &amp; Data</h2><div class="card"><p>Data sirf is browser me save hota hai. Ek click mein backup file download karein ya purani backup file upload karke data wapas layein.</p>
+<button class="p" onclick="pickSyncFolder()">&#128193; Set Auto-Sync Folder</button> <button class="p" onclick="dlBak()">&#11015; Download Backup (.json)</button> <button class="p" onclick="$('#bkf').click()">&#11014; Upload Backup (.json)</button> <input type="file" id="bkf" accept=".json,application/json" style="display:none" onchange="impFile(this)"> <button onclick="reset()">Sab data hatayein</button><br><br>
+<button onclick="$('#bk').value=JSON.stringify(D)">Export JSON (Text)</button> <button onclick="imp()">Import JSON (Text)</button><textarea id="bk" placeholder="Yahan JSON text dikhega ya paste karein..."></textarea></div>`}
+function dlBak(){const stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');saveFile('Shri_Enterprises_Backup_'+stamp+'.json',new Blob([JSON.stringify(D,null,2)],{type:'application/json'}))}
+function applyBackupText(txt){const raw=JSON.parse(txt);const x=raw.data&&raw.data.clients?raw.data:raw;if(!x.clients||!x.loans||!x.collections||!x.products)throw 0;if(raw.users&&Array.isArray(raw.users)&&raw.users.length){users=raw.users;usave();}D=x;D.entries=D.entries||[];D.closures=D.closures||[];migStaff();save();render();toast('Backup successfully restore ho gaya!')}
+function impFile(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{applyBackupText(r.result)}catch(e){alert('Sahi JSON backup file chunein')}};r.onerror=()=>alert('File padhi nahi ja saki');r.readAsText(f);inp.value=''}
+function imp(){try{applyBackupText($('#bk').value)}catch(e){alert('Sahi JSON backup paste karein')}}
 function reset(){ask('Saara data hata dein?',()=>{D={products:defProducts(),clients:[],loans:[],collections:[],entries:[],closures:[],staff:[],staffInit:1};save();render()})}
 let dc=null,fl='';
 const SL=[['cphoto','Client Photo'],['hphoto','Husband Photo'],['cid','Client ID Proof'],['hid','Husband ID Proof'],['addr','Address Proof']];
@@ -273,7 +361,7 @@ try{U=users.find(u=>u.id==sessionStorage.getItem('mfi_sess'))||null}catch(e){}
 const addStf=n=>{if(n&&!D.staff.some(s=>s.name==n))D.staff.push({id:'S'+String(Math.max(0,...D.staff.map(x=>+x.id.slice(1)||0))+1).padStart(3,'0'),name:n,smob:'',srole:'Staff login'})};
 function usStaff(){D.staff=D.staff||[];if(D.staffInit2)return;users.filter(u=>u.role=='staff').forEach(u=>addStf(u.name||u.id));D.staffInit2=1;save()}
 usStaff();
-const usave=()=>{try{localStorage.setItem(UK,JSON.stringify(users))}catch(e){}};
+const usave=()=>{try{localStorage.setItem(UK,JSON.stringify(users));writeAutoSyncFile()}catch(e){}};
 const b64=b=>btoa(String.fromCharCode(...new Uint8Array(b))),unb=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0)),rnd=n=>crypto.getRandomValues(new Uint8Array(n));
 async function hp(pw,salt){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);return b64(await crypto.subtle.deriveBits({name:'PBKDF2',salt:unb(salt),iterations:100000,hash:'SHA-256'},k,256))}
 async function mkUser(id,pw,role){const salt=b64(rnd(16));return{id,role,salt,hash:await hp(pw,salt)}}
