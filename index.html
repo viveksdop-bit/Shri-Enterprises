@@ -27,7 +27,7 @@ td.r{text-align:right}.bad{color:var(--bad);font-weight:bold}.ok{color:var(--ok)
 .bar{height:10px;background:var(--ac);border-radius:4px;min-width:2px}
 textarea{width:100%;height:160px;font-family:monospace;font-size:12px}
 </style></head><body>
-<header><h1><span class="lg" id="hl"></span>श्री Enterprises<small>Loan Manager</small> <span id="syncBadge" style="font-size:11px;background:var(--ab);color:var(--ac);padding:3px 8px;border-radius:12px;margin-left:6px;font-weight:normal">"" App</span></h1>
+<header><h1><span class="lg" id="hl"></span>श्री Enterprises<small>Loan Manager</small></h1>
 <label style="flex-direction:row;align-items:center;gap:6px">As-On Date <input type="date" id="ason" onchange="asOn=this.value||today();render()"></label><span id="usr"></span></header>
 <nav id="nav"></nav><main id="v"></main><div id="ov"></div>
 <footer style="text-align:center;color:var(--mu);font-size:12px;padding:16px">&copy; श्री Enterprises</footer>
@@ -111,8 +111,6 @@ async function writeAutoSyncFile() {
       const w = await fh.createWritable();
       await w.write(payload);
       await w.close();
-      const el = $('#syncBadge');
-      if (el) el.textContent = 'Auto-Saved: ' + new Date().toLocaleTimeString();
       return true;
     }
     const fh2 = await getSyncFile();
@@ -120,8 +118,6 @@ async function writeAutoSyncFile() {
       const w = await fh2.createWritable();
       await w.write(payload);
       await w.close();
-      const el = $('#syncBadge');
-      if (el) el.textContent = 'Auto-Saved: ' + new Date().toLocaleTimeString();
       return true;
     }
     return false;
@@ -327,7 +323,7 @@ const xc=i=>{let s='';i++;while(i>0){const m=(i-1)%26;s=String.fromCharCode(65+m
 function xlsx(sheet,rows){
  const sd=rows.map((r,ri)=>`<row r="${ri+1}">${r.map((v,ci)=>typeof v=='number'?`<c r="${xc(ci)}${ri+1}"><v>${v}</v></c>`:`<c r="${xc(ci)}${ri+1}" t="inlineStr"><is><t>${xe(v)}</t></is></c>`).join('')}</row>`).join('');
  const X='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',R='http://schemas.openxmlformats.org/officeDocument/2006/relationships',PK='http://schemas.openxmlformats.org/package/2006/relationships';
- return zip([['[Content_Types].xml',X+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'],
+ return zip([['[Content_Types].xml',X+'<Types xmlns="http://schemas.openxmlformats.org/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'],
  ['_rels/.rels',X+`<Relationships xmlns="${PK}"><Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
  ['xl/workbook.xml',X+`<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${R}"><sheets><sheet name="${xe(sheet)}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
  ['xl/_rels/workbook.xml.rels',X+`<Relationships xmlns="${PK}"><Relationship Id="rId1" Type="${R}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`],
